@@ -1,0 +1,7 @@
+Apply an XSLT program to an XML document.
+
+%s
+
+Options:
+    --help      Show this information
+    --version   Show the version

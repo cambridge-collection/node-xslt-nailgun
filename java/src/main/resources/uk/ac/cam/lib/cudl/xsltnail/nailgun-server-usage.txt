@@ -1,0 +1,18 @@
+Run the XSLT Nailgun server.
+
+Usage:
+    xslt-nailgun [options] <address>
+
+Arguments:
+    <address>    Either a path to a local IPC socket (UNIX domain socket or
+                 Windows named pipe), or a host:port to listen on.
+
+Options:
+    --address-type=<type>
+                Force <address> to be interpreted as as either a local IPC
+                socket ("local") or a network address ("network").
+    --log-level=<level>
+                Set the log level. Values can be SEVERE, WARNING,
+                INFO, CONFIG, FINE, FINER or FINEST.
+    --help      Show this information
+    --version   Show the version
