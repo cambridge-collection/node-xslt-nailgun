@@ -12,6 +12,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        <dependency-jars-dir>${project.build.directory}/jars</dependency-jars-dir>
     </properties>
 
     <build>
@@ -50,30 +51,26 @@
                             <Last-Commit-Id>${git.commit.id}</Last-Commit-Id>
                             <Last-Commit-Time>${git.commit.time}</Last-Commit-Time>
                             <Reproducible-Build>true</Reproducible-Build>
+                            <Main-Class>uk.ac.cam.lib.cudl.xsltnail.XSLTNailgunServer</Main-Class>
                         </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
             <plugin>
-                <artifactId>maven-assembly-plugin</artifactId>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
                 <version>3.1.1</version>
-                <configuration>
-                    <descriptorRefs>
-                        <descriptorRef>jar-with-dependencies</descriptorRef>
-                    </descriptorRefs>
-                    <archive>
-                        <manifest>
-                            <mainClass>uk.ac.cam.lib.cudl.xsltnail.XSLTNailgunServer</mainClass>
-                        </manifest>
-                    </archive>
-                </configuration>
                 <executions>
                     <execution>
-                        <id>make-assembly</id>
+                        <id>copy-dependencies</id>
                         <phase>package</phase>
                         <goals>
-                            <goal>single</goal>
+                            <goal>copy-dependencies</goal>
                         </goals>
+                        <configuration>
+                            <outputDirectory>${dependency-jars-dir}</outputDirectory>
+                            <includeScope>compile</includeScope>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -133,7 +130,7 @@
                 </executions>
                 <configuration>
                     <systemPropertyVariables>
-                        <uk.ac.cam.lib.cudl.xsltnail.jar>${project.build.directory}/${project.build.finalName}-jar-with-dependencies.jar</uk.ac.cam.lib.cudl.xsltnail.jar>
+                        <uk.ac.cam.lib.cudl.xsltnail.server.classpath>${dependency-jars-dir}/*:${project.build.directory}/${project.build.finalName}.jar</uk.ac.cam.lib.cudl.xsltnail.server.classpath>
                         <uk.ac.cam.lib.cudl.xsltnail.python-ng-client>${project.basedir}/vendor/nailgun-client-python/ng.py</uk.ac.cam.lib.cudl.xsltnail.python-ng-client>
                     </systemPropertyVariables>
                     <includes>
@@ -194,6 +191,7 @@
             <groupId>org.xmlunit</groupId>
             <artifactId>xmlunit-core</artifactId>
             <version>2.6.3</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.xmlunit</groupId>

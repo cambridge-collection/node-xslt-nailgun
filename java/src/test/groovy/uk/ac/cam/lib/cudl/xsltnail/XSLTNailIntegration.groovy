@@ -11,7 +11,7 @@ import static org.xmlunit.matchers.CompareMatcher.isSimilarTo
 import static spock.util.matcher.HamcrestSupport.expect
 
 class XSLTNailIntegration extends Specification {
-    private static final String UBERJAR_PATH_PROPERTY = "uk.ac.cam.lib.cudl.xsltnail.jar"
+    private static final String SERVER_CLASSPATH_PROPERTY = "uk.ac.cam.lib.cudl.xsltnail.server.classpath"
     private static final String PYTHON_NG_CLIENT = "uk.ac.cam.lib.cudl.xsltnail.python-ng-client"
 
     static int getUnusedPort() {
@@ -27,7 +27,7 @@ class XSLTNailIntegration extends Specification {
         return new File(XSLTNailSpec.class.getResource(path).toURI()).toPath()
     }
 
-    def serverPath = requireProperty(UBERJAR_PATH_PROPERTY)
+    def serverClasspath = requireProperty(SERVER_CLASSPATH_PROPERTY)
     def clientPath = requireProperty(PYTHON_NG_CLIENT)
     def port
 
@@ -40,7 +40,9 @@ class XSLTNailIntegration extends Specification {
         CountDownLatch startedSignal = new CountDownLatch(1)
 
         when:
-        Process serverProc = ["java", "-jar", serverPath, "localhost:${port}"].execute()
+        Process serverProc = ["java", "-cp", serverClasspath,
+                              "uk.ac.cam.lib.cudl.xsltnail.XSLTNailgunServer",
+                              "localhost:${port}"].execute()
         // consume and ignore stderr
         Thread.start { serverProc.getErrorStream().eachLine("UTF-8") { } }
         Thread.start { serverProc.getInputStream().eachLine("UTF-8") {
