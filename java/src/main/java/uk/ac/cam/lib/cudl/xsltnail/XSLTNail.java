@@ -138,7 +138,7 @@ public class XSLTNail implements AutoCloseable {
             Throwable cause = e instanceof ExecutionException ? e.getCause() : e;
             if(cause instanceof XSLTNailException)
                 throw (XSLTNailException)cause;
-            throw new InternalXSLTNailException("Failed to execute transform: " + e.getMessage(), cause);
+            throw new InternalXSLTNailException("Failed to execute transform: " + e, cause);
         }
     }
 
