@@ -4,23 +4,30 @@ export interface Closable {
     close(): Promise<void> | void;
 }
 
-export type ResourceUser<A, B> = (resource: Promise<A>) => Promise<B> | B;
+export type ResourcePromiseUser<A, B> = (resource: Promise<A>) => Promise<B> | B;
+export type ResourceUser<A, B> = (resource: A) => Promise<B> | B;
 
 export async function using<A extends Closable, B>(resource: PromiseLike<A> | A, user: ResourceUser<A, B>): Promise<B> {
-    const pendingResource = Promise.resolve(resource);
-    let result: Promise<B>;
+    return usingPromise(resource, async (resourcePromise) => {
+        return user(await resourcePromise);
+    });
+}
+
+export async function usingPromise<A extends Closable, B>(
+    resource: PromiseLike<A> | A, user: ResourcePromiseUser<A, B>,
+): Promise<B> {
+    let result: Promise<B> = Promise.resolve(user(Promise.resolve(resource)));
     let userFailed = false;
     try {
-        result = Promise.resolve(await user(pendingResource));
+        await result;
     }
     catch(e) {
         userFailed = true;
-        result = Promise.reject(e);
     }
     finally {
         let realResource;
         try {
-            realResource = await pendingResource;
+            realResource = await resource;
         }
         catch(e) {
             // Prefer to fail with an error from the user function
@@ -34,6 +41,7 @@ export async function using<A extends Closable, B>(resource: PromiseLike<A> | A,
             catch(e) {
                 if(!userFailed)
                     result = Promise.reject(new TraceError('close() failed on resource', e));
+                // Note that we ignore a failure in close() if the user also failed
             }
         }
     }

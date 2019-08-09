@@ -1,30 +1,17 @@
-/*
-Entities:
-  - Server config:
-    - listen address
-
-  - JVM process/Nailgun server
-    - ref counts users
-    - java executable
-    - PID
-  - XSLT Executor
- */
-
-import memoryStreams from 'memory-streams';
 import assert from 'assert';
-import allSettled from 'promise.allsettled';
-import jvmpin from 'jvmpin';
 import {ChildProcess, spawn} from 'child_process';
 import DevNull from 'dev-null';
 import getPort from 'get-port';
 import jsonStableStringify from 'json-stable-stringify';
+import jvmpin from 'jvmpin';
+import memoryStreams from 'memory-streams';
 import path from 'path';
 import readline from 'readline';
 import RingBuffer from 'ringbufferjs';
 import {Readable} from 'stream';
 import TraceError from 'trace-error';
 import * as util from 'util';
-import {Closable, using} from './_resources';
+import {Closable} from './_resources';
 import Timeout = NodeJS.Timeout;
 
 export class XSLTNailgunError extends TraceError {}
@@ -43,10 +30,8 @@ export class UserError extends XSLTNailgunError {
 export class InternalError extends XSLTNailgunError {}
 
 export function getClasspath() {
-    // FIXME
-    const packageJsonPath = '/home/hal/workspace/node-xslt-nailgun/package.json';
+    const packageJsonPath = '../package.json';
     const metadata = require(packageJsonPath);
-    // const metadata = require('../package.json');
     if(!(typeof metadata['uk.ac.cam.lib.cudl.xslt-nailgun'] === 'object' &&
         typeof metadata['uk.ac.cam.lib.cudl.xslt-nailgun'].serverJarsPath === 'string')) {
         throw new Error('xslt-nailgun package.json does not contain required metadata');
@@ -335,7 +320,7 @@ ${this.getCurrentStderr()}`, error));
     }
 }
 
-function timeout<T>(ms: number, value?: T): {finished: Promise<T>} & Closable {
+export function timeout<T>(ms: number, value?: T): {finished: Promise<T>} & Closable {
     let resolve: () => void;
     let id: Timeout;
     const close = () => {
@@ -398,10 +383,9 @@ export class XSLTExecutor implements Closable {
     public execute(xmlBaseURI: string, xml: string | Buffer, xsltPath: string): Promise<Buffer> {
         const pendingResult = this.doExecute(xmlBaseURI, xml, xsltPath);
         this.activeExecutions.add(pendingResult);
-        pendingResult.finally(() => {
+        return pendingResult.finally(() => {
             this.activeExecutions.delete(pendingResult);
         });
-        return pendingResult;
     }
 
     private async doExecute(xmlBaseURI: string, xml: string | Buffer, xsltPath: string): Promise<Buffer> {
@@ -415,47 +399,61 @@ export class XSLTExecutor implements Closable {
 Unsupported address type: ${process.address.addressType} - jvmpin only supports TCP connections`);
         const conn = jvmpin.createConnection(process.address.port, process.address.host);
 
-        const stdoutData = new memoryStreams.WritableStream();
-        const stderrData = new memoryStreams.WritableStream();
-
-        return new Promise<Buffer>((resolve, reject) => {
-            let exitStatus: Promise<number>;
-            conn.on('connect', () => {
-                const proc = conn.spawn('xslt', ['transform', xsltPath, xmlBaseURI], {env: {}});
-                exitStatus = new Promise(resolveExitStatus => {
-                    proc.on('exit', (signal: number | string) => {
-                        const status = typeof signal === 'number' ? signal : parseInt(signal, 10);
-                        resolveExitStatus(status);
-                    });
-                });
-                proc.stdout.pipe(stdoutData);
-                proc.stderr.pipe(stderrData);
-                proc.stdin.end(xml);
-            });
-
-            conn.on('close', async () => {
-                if(exitStatus === undefined) {
-                    throw new InternalError(`\
-Error communicating with xslt-nailgun server: connection closed prematurely`);
-                }
-
-                const status = await exitStatus;
-                if(status === EXIT_STATUS_OK) {
-                    resolve(stdoutData.toBuffer());
-                }
-                else if(status === EXIT_STATUS_USER_ERROR) {
-                    reject(new UserError(`\
-XSLT execution failed: ${stderrData.toString()}`, xml, xmlBaseURI, xsltPath));
-                }
-                else {
-                    reject(new InternalError(`\
-Error submitting XSLT transformation to xslt-nailgun server: ${stderrData.toString()}`));
-                }
-            });
-
-            conn.on('error', error => {
-                reject(new InternalError('Error communicating with xslt-nailgun server', error));
+        const error = new Promise<never>((resolve, reject) => {
+            conn.on('error', e => {
+                reject(new InternalError('Error communicating with xslt-nailgun server', e));
             });
         });
+        const connected = new Promise<void>((resolve) => {
+            conn.on('connect', resolve);
+        });
+        const connectionClosed = new Promise<void>((resolve) => {
+            conn.on('close', resolve);
+        });
+
+        await abortOnError(connected, error);
+
+        const proc = conn.spawn('xslt', ['transform', xsltPath, xmlBaseURI], {env: {}});
+        const exitStatus = new Promise<number>((resolve, reject) => {
+            let exited = false;
+            conn.on('close', () => {
+                if(!exited)
+                    reject(new InternalError(`\
+Error communicating with xslt-nailgun server: connection closed prematurely`));
+            });
+            proc.on('exit', (signal: number | string) => {
+                exited = true;
+                resolve(typeof signal === 'number' ? signal : parseInt(signal, 10));
+            });
+        });
+
+        const stdoutData = new memoryStreams.WritableStream();
+        const stderrData = new memoryStreams.WritableStream();
+        proc.stdout.pipe(stdoutData);
+        proc.stderr.pipe(stderrData);
+        proc.stdin.end(xml);
+
+        const [status] = await abortOnError(Promise.all([exitStatus, connectionClosed]), error);
+
+        if(status === EXIT_STATUS_OK) {
+            return stdoutData.toBuffer();
+        }
+        else if(status === EXIT_STATUS_USER_ERROR) {
+            throw new UserError(`\
+XSLT execution produced an error: ${stderrData.toString()}`, xml, xmlBaseURI, xsltPath);
+        }
+        else {
+            throw new InternalError(`\
+xslt-nailgun server failed to execute transform due to an internal error: ${stderrData.toString()}`);
+        }
     }
+}
+
+function abortOnError<T>(promise: Promise<T>, errorProducer: Promise<any>): Promise<T> {
+    // The second promise can only reject, so the returned promise can be cast
+    // to T as it can only ever resolve to T.
+    return Promise.race([
+        promise,
+        errorProducer.then(() => { throw new Error('errorProducer unexpectedly resolved'); }),
+    ]) as Promise<T>;
 }

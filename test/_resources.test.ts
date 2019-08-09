@@ -1,4 +1,4 @@
-import {Closable, using} from '../src/_resources';
+import {Closable, using, usingPromise} from '../src';
 
 class Thing implements Closable {
     public isClosed: boolean = false;
@@ -17,7 +17,7 @@ test('using() closes resource after user\'s promise resolves', async () => {
         return 42;
     });
 
-    expect((await result)).toBe(42);
+    expect(result).toBe(42);
     expect(resource.isClosed).toBe(true);
     expect.assertions(4);
 });
@@ -51,12 +51,20 @@ test('using() rejects with error from resource promise if it rejects', async () 
     })).rejects.toThrow('failed to create resource');
 });
 
-test('using() rejects with error from user function if it and resource promise both fail', async () => {
-    const resource: Promise<any> = Promise.reject(new Error('boom'));
+test('usingPromise() rejects with error from user function if it and resource promise both fail', async () => {
+    const resource: Promise<any> = Promise.reject(new Error('failed to create resource'));
+
+    await expect(usingPromise(resource, async r => {
+        throw new Error('failed to use resource');
+    })).rejects.toThrow('failed to use resource');
+});
+
+test('using() rejects with error from resource promise if rejects', async () => {
+    const resource: Promise<any> = Promise.reject(new Error('failed to create resource'));
 
     await expect(using(resource, async r => {
         throw new Error('failed to use resource');
-    })).rejects.toThrow('failed to use resource');
+    })).rejects.toThrow('failed to create resource');
 });
 
 test('using() rejects with error if close() fails', async () => {

@@ -118,7 +118,7 @@ test('listeningOnRandomPort() succeeds after a failed listen attempt', async () 
         getPort: _getPort,
     }), async (proc) => {
         await expect((await proc).serverStarted).resolves.toBeUndefined();
-        expect((await proc).address.listenAddress).toBe(`127.0.0.1:${freePort}`);
+        expect((await proc).address.listenAddress).toBe(`127.0.0.1:${await freePort}`);
         expect(_getPort.mock.calls.length).toBe(3);
     });
 
