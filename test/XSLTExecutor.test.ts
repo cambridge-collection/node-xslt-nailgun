@@ -32,7 +32,8 @@ test('execute() rejects with UserError on syntactically invalid XSLT', async () 
     });
 
     await expect(result).rejects.toThrow(UserError);
-    await expect(result).rejects.toThrow(/^XSLT execution produced an error: Failed to compile XSLT: Error on line \d+ column \d+ of invalid-syntax.xsl:/);
+    await expect(result).rejects.toThrow(new RegExp(`\
+^XSLT execution produced an error: Failed to compile XSLT: Error on line \\d+ column \\d+ of invalid-syntax.xsl:`));
 });
 
 test('execute() rejects with UserError when execution of XSLT raises an error', async () => {

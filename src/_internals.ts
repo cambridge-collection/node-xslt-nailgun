@@ -3,7 +3,6 @@ import {ChildProcess, spawn} from 'child_process';
 import DevNull from 'dev-null';
 import getPort from 'get-port';
 import jsonStableStringify from 'json-stable-stringify';
-import jvmpin from 'jvmpin';
 import memoryStreams from 'memory-streams';
 import path from 'path';
 import readline from 'readline';
@@ -11,7 +10,8 @@ import RingBuffer from 'ringbufferjs';
 import {Readable} from 'stream';
 import TraceError from 'trace-error';
 import * as util from 'util';
-import {Closable} from './_resources';
+import {Closable, using} from './_resources';
+import jvmpin from './vendor/jvmpin/lib/jvmpin';
 import Timeout = NodeJS.Timeout;
 
 export class XSLTNailgunError extends TraceError {}
@@ -415,15 +415,13 @@ Unsupported address type: ${process.address.addressType} - jvmpin only supports 
 
         const proc = conn.spawn('xslt', ['transform', xsltPath, xmlBaseURI], {env: {}});
         const exitStatus = new Promise<number>((resolve, reject) => {
-            let exited = false;
-            conn.on('close', () => {
-                if(!exited)
-                    reject(new InternalError(`\
-Error communicating with xslt-nailgun server: connection closed prematurely`));
-            });
-            proc.on('exit', (signal: number | string) => {
-                exited = true;
-                resolve(typeof signal === 'number' ? signal : parseInt(signal, 10));
+            proc.on('exit', (signal: number | null) => {
+                if(signal === null) {
+                    reject(new InternalError('Error communicating with xslt-nailgun server: nail process was killed'));
+                }
+                else {
+                    resolve(signal);
+                }
             });
         });
 

@@ -7,13 +7,14 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "noImplicitAny": true,
-    "outDir": "build/dist-root",
+    "outDir": "build/dist-root/lib",
     "paths": {
       "*": [
         "node_modules/*",
         "src/types/*"
       ]
     },
+    "rootDirs": ["src", "lib"],
     "resolveJsonModule": true,
     "sourceMap": true,
     "strictNullChecks": true,
