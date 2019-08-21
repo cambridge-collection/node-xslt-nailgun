@@ -39,7 +39,6 @@
                     <verbose>true</verbose>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -55,6 +54,27 @@
                         </manifestEntries>
                     </archive>
                 </configuration>
+            </plugin>
+            <!-- Note: The reproducible build plugin needs to apply before
+                       copying dependencies. This is achieved by the
+                       reproducible build plugin being defined first. -->
+            <plugin>
+                <groupId>io.github.zlika</groupId>
+                <artifactId>reproducible-build-maven-plugin</artifactId>
+                <version>0.10</version>
+                <executions>
+                    <execution>
+                        <id>strip-jar</id>
+                        <goals>
+                            <goal>strip-jar</goal>
+                        </goals>
+                        <phase>package</phase>
+                        <configuration>
+                            <zipDateTime>${git.commit.time}</zipDateTime>
+                            <zipDateTimeFormatPattern>yyyy-MM-dd'T'HH:mm:ssZ</zipDateTimeFormatPattern>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -88,25 +108,6 @@
                                 </artifactItem>
                             </artifactItems>
                             <outputDirectory>${dependency-jars-dir}</outputDirectory>
-
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>io.github.zlika</groupId>
-                <artifactId>reproducible-build-maven-plugin</artifactId>
-                <version>0.10</version>
-                <executions>
-                    <execution>
-                        <id>strip-jar</id>
-                        <goals>
-                            <goal>strip-jar</goal>
-                        </goals>
-                        <phase>package</phase>
-                        <configuration>
-                            <zipDateTime>${git.commit.time}</zipDateTime>
-                            <zipDateTimeFormatPattern>yyyy-MM-dd'T'HH:mm:ssZ</zipDateTimeFormatPattern>
                         </configuration>
                     </execution>
                 </executions>
