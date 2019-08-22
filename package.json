@@ -6,7 +6,9 @@
     "build": "tsc --build tsconfig.build.json",
     "docs": "typedoc --ignoreCompilerErrors --out docs src",
     "test": "jest",
-    "lint": "tslint --project tsconfig.json"
+    "lint": "tslint --project tsconfig.json",
+    "prepack": "echo \"Error: You can't pack/publish from the un-built repo root, use \\`make\\` to build\" >&2; false",
+    "_prepack": "[ \"$(git status --porcelain)\" = '' ] || exit 1"
   },
   "author": "Hal Blackburn <hwtb2@cam.ac.uk>",
   "license": "MIT",
@@ -47,5 +49,10 @@
   "keywords": [],
   "uk.ac.cam.lib.cudl.xslt-nailgun": {
     "serverJarsPath": "java/target/jars"
-  }
+  },
+  "files": [
+    "**/*.js",
+    "**/*.d.ts",
+    "jars/*.jar"
+  ]
 }
