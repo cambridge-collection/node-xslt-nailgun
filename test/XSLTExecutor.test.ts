@@ -7,10 +7,21 @@ const testResourcesDir = path.resolve(__dirname, '../java/src/test/resources/uk/
 
 test('execute() transforms XML with XSLT', async () => {
     const result = await using(XSLTExecutor.getInstance(), async (executor) => {
-        return (await executor).execute('/tmp/foo.xml', '<foo>hi</foo>', path.resolve(testResourcesDir, 'a.xsl'));
+        return executor.execute('/tmp/foo.xml', '<foo>hi</foo>', path.resolve(testResourcesDir, 'a.xsl'));
     });
 
     await expect(result.toString()).toEqualXML(`\
+<?xml version="1.0" encoding="UTF-8"?>
+<result><foo>hi</foo></result>`);
+});
+
+test('execute() transforms XML with XSLT (without async)', () => {
+    const result = using(XSLTExecutor.getInstance(), (executor) => {
+        return executor.execute('/tmp/foo.xml', '<foo>hi</foo>', path.resolve(testResourcesDir, 'a.xsl'))
+            .then(buffer => buffer.toString());
+    });
+
+    return expect(result).resolves.toEqualXML(`\
 <?xml version="1.0" encoding="UTF-8"?>
 <result><foo>hi</foo></result>`);
 });
