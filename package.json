@@ -1,6 +1,6 @@
 {
-  "name": "xslt-nailgun",
-  "version": "0.0.0-alpha.0",
+  "name": "@lib.cam/xslt-nailgun",
+  "version": "0.0.0-beta.0",
   "description": "Execute XSLT with SAXON in a separate JVM with low overhead",
   "scripts": {
     "build": "tsc --build tsconfig.build.json",
