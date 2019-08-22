@@ -455,3 +455,7 @@ function abortOnError<T>(promise: Promise<T>, errorProducer: Promise<any>): Prom
         errorProducer.then(() => { throw new Error('errorProducer unexpectedly resolved'); }),
     ]) as Promise<T>;
 }
+
+export async function execute(xmlBaseURI: string, xml: string | Buffer, xsltPath: string) {
+    return using(XSLTExecutor.getInstance(), (executor) => executor.execute(xmlBaseURI, xml, xsltPath));
+}
