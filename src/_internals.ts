@@ -442,7 +442,8 @@ XSLT execution produced an error: ${stderrData.toString()}`, xml, xmlBaseURI, xs
         }
         else {
             throw new InternalError(`\
-xslt-nailgun server failed to execute transform due to an internal error: ${stderrData.toString()}`);
+xslt-nailgun server failed to execute transform due to an internal error \
+(status: ${status}): ${stderrData.toString()}`);
         }
     }
 }
