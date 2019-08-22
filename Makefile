@@ -14,10 +14,9 @@ build/dist-root/jars: build/dist-root compile-java
 
 build/dist-root/package.json: FILTER = '\
 	. as $$root | \
-	.main |= "lib/index.js" | \
-	.types |= "lib/index.d.ts" | \
-	.types |= "lib/index.d.ts" | \
-	.["uk.ac.cam.lib.cudl.xslt-nailgun"].serverJarsPath |= "jars" | \
+	.main |= "./lib/index.js" | \
+	.types |= "./lib/index.d.ts" | \
+	.["uk.ac.cam.lib.cudl.xslt-nailgun"].serverJarsPath |= "./jars" | \
 	.scripts.prepack |= $$root.scripts._prepack | \
 	del(.scripts._prepack)'
 build/dist-root/package.json: package.json build/dist-root

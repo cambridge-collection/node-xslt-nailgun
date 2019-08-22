@@ -45,7 +45,6 @@
       "<rootDir>/build/"
     ]
   },
-  "main": "index.js",
   "keywords": [],
   "uk.ac.cam.lib.cudl.xslt-nailgun": {
     "serverJarsPath": "java/target/jars"
