@@ -45,10 +45,11 @@ public class XSLTNail implements AutoCloseable {
     }
 
     public static void nailMain(@Nonnull NGContext context) {
-        NGServer server = context.getNGServer();
-        XSLTNail nail = NAILS.get(server, s -> XSLTNail.newInstance());
-
         try {
+            NGServer server = context.getNGServer();
+            XSLTNail nail = NAILS.get(server, s -> XSLTNail.newInstance());
+            assert nail != null;
+
             Map<String, Object> args = Constants.USAGE_TRANSFORM.parse(context.getArgs());
             XSLTTransformOperation op = XSLTTransformOperation.fromParsedArguments(args);
             Either<String, Void> result = nail.transform(op, context.in, context.out);
@@ -72,8 +73,9 @@ public class XSLTNail implements AutoCloseable {
             // are internal module errors.
             context.exit(EXIT_STATUS_INTERNAL_ERROR);
         }
-        catch(XSLTNailException e) {
-            context.err.println(e);
+        catch(RuntimeException e) {
+            context.err.println("XSLT execution failed with an internal error, this is most likely a bug:");
+            e.printStackTrace(context.err);
             context.exit(EXIT_STATUS_INTERNAL_ERROR);
         }
     }

@@ -33,7 +33,7 @@ test('execute() rejects with UserError on invalid input data', async () => {
     });
 
     await expect(result).rejects.toThrow(UserError);
-    await expect(result).rejects.toThrow(/^XSLT execution produced an error: Failed to execute transform: /);
+    await expect(result).rejects.toThrow(/^XSLT evaluation produced an error: Failed to execute transform: /);
     await expect(result).rejects.toThrow(/Error reported by XML parser:/);
 });
 
@@ -44,7 +44,7 @@ test('execute() rejects with UserError on syntactically invalid XSLT', async () 
 
     await expect(result).rejects.toThrow(UserError);
     await expect(result).rejects.toThrow(new RegExp(`\
-^XSLT execution produced an error: Failed to compile XSLT: Error on line \\d+ column \\d+ of invalid-syntax.xsl:`));
+^XSLT evaluation produced an error: Failed to compile XSLT: Error on line \\d+ column \\d+ of invalid-syntax.xsl:`));
 });
 
 test('execute() rejects with UserError when execution of XSLT raises an error', async () => {
@@ -54,7 +54,7 @@ test('execute() rejects with UserError when execution of XSLT raises an error', 
 
     await expect(result).rejects.toThrow(UserError);
     await expect(result).rejects.toThrow(
-        /^XSLT execution produced an error: Failed to execute transform: Error evaluating \(1 div 0\)/);
+        /^XSLT evaluation produced an error: Failed to execute transform: Error evaluating \(1 div 0\)/);
     await expect(result).rejects.toThrow(/FOAR0001: Integer division by zero/);
 });
 
@@ -93,8 +93,9 @@ test('execute() rejects with InternalError when nailgun server closes before exe
     await expect(result).rejects.toThrow(InternalError);
     const msg1 = 'Error communicating with xslt-nailgun server';
     const msg2 = `\
-xslt-nailgun server failed to execute transform due to an internal error: \
-uk\.ac\.cam\.lib\.cudl\.xsltnail\.InternalXSLTNailException: Failed to execute transform: \
-java\.lang\.InterruptedException`;
+XSLT nail failed to execute transform due to an internal error: \
+XSLT execution failed with an internal error, this is most likely a bug:
+uk.ac.cam.lib.cudl.xsltnail.InternalXSLTNailException: \
+Failed to execute transform: java.lang.InterruptedException`;
     await expect(result).rejects.toThrow(new RegExp(`${msg1}|${msg2}`));
 });

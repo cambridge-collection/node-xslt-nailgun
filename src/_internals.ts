@@ -315,7 +315,7 @@ ${this.getCurrentStderr()}`, error));
         }
     }
 
-    private getCurrentStderr(): string {
+    public getCurrentStderr(): string {
         return this.stderrLines.peekN(this.stderrLines.size()).join('\n');
     }
 }
@@ -352,6 +352,7 @@ function getServerProcessReference(options: StrictCreateOptions): AutoCloserRefe
 }
 
 const EXIT_STATUS_OK = 0;
+const EXIT_STATUS_INTERNAL_ERROR = 1;
 const EXIT_STATUS_USER_ERROR = 2;
 
 export class XSLTExecutor implements Closable {
@@ -438,14 +439,34 @@ Unsupported address type: ${process.address.addressType} - jvmpin only supports 
         }
         else if(status === EXIT_STATUS_USER_ERROR) {
             throw new UserError(`\
-XSLT execution produced an error: ${stderrData.toString()}`, xml, xmlBaseURI, xsltPath);
+XSLT evaluation produced an error: ${stderrData.toString()}`, xml, xmlBaseURI, xsltPath);
         }
         else {
-            throw new InternalError(`\
-xslt-nailgun server failed to execute transform due to an internal error \
-(status: ${status}): ${stderrData.toString()}`);
+            if(status === EXIT_STATUS_INTERNAL_ERROR) {
+                throw new InternalError(`\
+XSLT nail failed to execute transform due to an internal error\
+${errorMessageOrFallback(stderrData.toString(), ' but no error message is available.')}`);
+            }
+            else {
+                const nailErrorMsg = errorMessageOrFallback(
+                    stderrData.toString(), ', but no error message is available.');
+                const serverStderrMsg = errorMessageOrFallback(
+                    process.getCurrentStderr(), '',
+                    '\n\nNailgun server stderr output (this may or may not relate to the above error):\n%s');
+
+                throw new InternalError(`\
+XSLT nail exited with unexpected status ${status}${nailErrorMsg}${serverStderrMsg}`);
+            }
         }
     }
+}
+
+function errorMessageOrFallback(error: string, fallback: string, template?: string) {
+    template = template || ': %s';
+    if(error.length > 0) {
+        return util.format(template, error);
+    }
+    return fallback;
 }
 
 function abortOnError<T>(promise: Promise<T>, errorProducer: Promise<any>): Promise<T> {
