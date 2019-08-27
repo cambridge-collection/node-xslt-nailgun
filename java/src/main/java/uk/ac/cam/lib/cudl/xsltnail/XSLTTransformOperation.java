@@ -1,10 +1,12 @@
 package uk.ac.cam.lib.cudl.xsltnail;
 
+import io.vavr.collection.Map;
+import io.vavr.control.Option;
+
 import javax.annotation.Nonnull;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 
 public final class XSLTTransformOperation {
     public final Path xsltPath;
@@ -17,13 +19,18 @@ public final class XSLTTransformOperation {
 
     @Nonnull
     public static XSLTTransformOperation fromParsedArguments(Map<String, Object> args) {
-        Optional<Path> xsltPath = Args.getString(args, "<xslt-file>")
-            .map(FileSystems.getDefault()::getPath);
+        if(!args.get("transform").exists(Boolean.TRUE::equals))
+            throw new IllegalArgumentException("args are not a transform command");
+        Objects.requireNonNull(args);
+        Option<Path> xsltPath = args.get("<xslt-file>")
+            .flatMap(Values::asString)
+            .map(path -> FileSystems.getDefault().getPath(path));
 
-        Optional<String> inputIdentifier = Args.getString(args, "<xml-base-uri>");
+        Option<String> inputIdentifier = args.get("<xml-base-uri>").flatMap(Values::asString);
 
+        // Note that values not being present is a programming error
         return new XSLTTransformOperation(
-            xsltPath.orElseThrow(IllegalArgumentException::new),
-            inputIdentifier.orElseThrow(IllegalArgumentException::new));
+            xsltPath.getOrElseThrow(IllegalArgumentException::new),
+            inputIdentifier.getOrElseThrow(IllegalArgumentException::new));
     }
 }

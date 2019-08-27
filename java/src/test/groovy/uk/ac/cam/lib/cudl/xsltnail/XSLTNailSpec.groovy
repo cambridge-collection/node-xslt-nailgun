@@ -55,7 +55,8 @@ class XSLTNailSpec extends Specification {
         def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
 
         then:
-        result.left =~ /Error reported by XML parser:/
+        result.left._1 =~ /Error reported by XML parser:/
+        result.left._2 == Constants.EXIT_STATUS_USER_ERROR
     }
 
     def "transform() returns error message on syntactically invalid XSLT"() {
@@ -69,7 +70,8 @@ class XSLTNailSpec extends Specification {
         def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
 
         then:
-        result.left =~ /^Failed to compile XSLT: Error on line \d+ column \d+ of invalid-syntax.xsl:/
+        result.left._1 =~ /^Failed to compile XSLT: Error on line \d+ column \d+ of invalid-syntax.xsl:/
+        result.left._2 == Constants.EXIT_STATUS_USER_ERROR
     }
 
     def "transform() returns error message when execution of XSLT raises an error"() {
@@ -83,8 +85,9 @@ class XSLTNailSpec extends Specification {
         def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
 
         then:
-        result.left =~ /^Failed to execute transform: Error evaluating \(1 div 0\)/
-        result.left =~ /FOAR0001: Integer division by zero/
+        result.left._1 =~ /^Failed to execute transform: Error evaluating \(1 div 0\)/
+        result.left._1 =~ /FOAR0001: Integer division by zero/
+        result.left._2 == Constants.EXIT_STATUS_USER_ERROR
     }
 
     private static final XSLT_TEMPLATE = """\
@@ -178,8 +181,9 @@ class XSLTNailSpec extends Specification {
 
         then:
         errPatterns.each {
-            assert result.left.find(it)
+            assert result.left._1.find(it)
         }
+        result.left._2 == Constants.EXIT_STATUS_USER_ERROR
 
         cleanup:
         nail.close()

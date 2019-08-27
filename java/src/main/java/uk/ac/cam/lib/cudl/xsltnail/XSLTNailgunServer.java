@@ -3,26 +3,40 @@ package uk.ac.cam.lib.cudl.xsltnail;
 import com.facebook.nailgun.*;
 import com.facebook.nailgun.builtins.NGStop;
 import io.vavr.Predicates;
+import io.vavr.collection.HashMap;
+import io.vavr.collection.Map;
+import io.vavr.collection.Stream;
+import org.docopt.Docopt;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Map;
-import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static java.lang.String.format;
 
 public final class XSLTNailgunServer {
     private XSLTNailgunServer() {}
 
+    /**
+     * Parse an argument list according to {@link Constants#USAGE_SERVER}. Help
+     * text or version info is printed and the JVM terminated if requested, or
+     * if the args do not conform to the expected structure.
+     */
+    private static Map<String, Object> handleServerCLIArgs(String[] args) {
+        // Note that Docopt instances are not safe to reuse
+        return HashMap.ofAll(new Docopt(Constants.USAGE_SERVER)
+            .withExit(true)
+            .withHelp(true)
+            .withVersion(Constants.VERSION).parse(args));
+    }
+
     public static void main(String[] args) {
         try {
-            main(Constants.USAGE_SERVER.parse(args), address ->
+            main(handleServerCLIArgs(args), address ->
                     new NGServer(address, NGServer.DEFAULT_SESSIONPOOLSIZE, NGConstants.HEARTBEAT_TIMEOUT_MILLIS));
         }
         catch(FatalError e) {
@@ -36,14 +50,14 @@ public final class XSLTNailgunServer {
         NGServer createServer(NGListeningAddress address);
     }
 
-    static void main(Map<String, Object> args, ServerFactory serverFactory) {
-        configureLogging(Args.getString(args, "--log-level")
+    static void main(io.vavr.collection.Map<String, Object> args, ServerFactory serverFactory) {
+        configureLogging(args.get("--log-level").flatMap(Values::asString)
             .map(level -> {
                 try { return Level.parse(level); }
                 catch(IllegalArgumentException e) {
                     throw new FatalError(format("Invalid --log-level: %s", level), e);
                 }
-            }).orElse(Level.WARNING));
+            }).getOrElse(Level.WARNING));
 
         NGListeningAddress listenAddress = getAddress(args);
         NGServer server = serverFactory.createServer(listenAddress);
@@ -79,8 +93,8 @@ public final class XSLTNailgunServer {
     }
 
     private static Stream<Alias> getAliases(AliasManager am) {
-        return ((Set<?>)am.getAliases()).stream()
-            .map(o -> (Alias)(o instanceof Alias ? o : null))
+        return io.vavr.collection.Stream.of(am.getAliases())
+            .map(o -> o instanceof Alias ? (Alias)o : null)
             .filter(Predicates.isNotNull());
     }
 
@@ -92,9 +106,8 @@ public final class XSLTNailgunServer {
     }
 
     private static NGListeningAddress getAddress(Map<String, Object> args) {
-        String address = Args.getString(args, "<address>")
-            .orElseThrow(AssertionError::new);
-        AddressType type = Args.getString(args, "--address-type")
+        String address = args.get("<address>").flatMap(Values::asString).getOrElseThrow(AssertionError::new);
+        AddressType type = args.get("--address-type").flatMap(Values::asString)
             .map(value -> {
                 if(value.toLowerCase().equals(value)) {
                     try { return AddressType.valueOf(value.toUpperCase()); }
@@ -103,7 +116,7 @@ public final class XSLTNailgunServer {
                 throw new FatalError(format(
                     "If specified, --address-type must be \"local\" or \"network\", got: \"%s\"", value));
             })
-            .orElseGet(() -> AddressType.guessAddressType(address));
+            .getOrElse(() -> AddressType.guessAddressType(address));
 
         return type.parseAddress(address);
     }

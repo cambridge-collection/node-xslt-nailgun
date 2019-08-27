@@ -2,7 +2,6 @@ package uk.ac.cam.lib.cudl.xsltnail;
 
 import com.github.benmanes.caffeine.cache.AsyncCacheLoader;
 import io.vavr.control.Either;
-import io.vavr.control.Try;
 import net.sf.saxon.lib.StandardErrorListener;
 import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.SaxonApiException;
@@ -14,7 +13,6 @@ import javax.xml.transform.stream.StreamSource;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;

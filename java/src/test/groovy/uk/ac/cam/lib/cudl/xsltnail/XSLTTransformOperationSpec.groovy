@@ -1,53 +1,58 @@
 package uk.ac.cam.lib.cudl.xsltnail
 
-import org.docopt.DocoptExitException
+import io.vavr.collection.HashMap
+import io.vavr.collection.Map
 import spock.lang.Specification
 import spock.lang.Unroll
 
+import java.nio.file.FileSystems
+
+import static io.vavr.API.Map
+
 class XSLTTransformOperationSpec extends Specification {
-    def "constructor"() {
+    def "properties follow constructor arguments"() {
         given:
-        def xsltPath = new File("/foo").toPath()
-        def inputIdentifier = "/bar"
+        def path = FileSystems.getDefault().getPath("/foo")
+        def ident = "/bar"
 
         when:
-        def op = new XSLTTransformOperation(xsltPath, inputIdentifier)
+        def op = new XSLTTransformOperation(path, ident)
 
         then:
-        op.xsltPath == xsltPath
-        op.inputIdentifier == inputIdentifier
-    }
-
-    def "parse arguments"() {
-        given:
-        def xsltPath = new File("/foo").toPath()
-        def inputIdentifier = "/bar"
-        def args = "transform /foo /bar".split(" ")
-
-        when:
-        def op = XSLTTransformOperation.fromParsedArguments(Constants.USAGE_TRANSFORM.parse(args))
-
-        then:
-        op.xsltPath == xsltPath
-        op.inputIdentifier == inputIdentifier
+        path.is(op.xsltPath)
+        ident.is(op.inputIdentifier)
     }
 
     @Unroll
-    def "docopt rejects invalid argument list #args"(String[] args) {
+    def "fromParsedArguments() rejects args without expected keys"(Map<String, String> values) {
         when:
-        Constants.USAGE_TRANSFORM.parse(args)
+        XSLTTransformOperation.fromParsedArguments(values)
 
         then:
-        thrown(DocoptExitException)
+        thrown(IllegalArgumentException.class)
 
         where:
-        args << [
-            "",
-            "foo /bar",
-            "foo /bar /baz",
-            "transform",
-            "transform /bar",
-            "transform /bar /baz /boz",
-        ].collect { it.split(" ") }
+        values << [
+            [:],
+            ["transform": false, "<xslt-file>": "/foo", "<xml-base-uri>": "/bar"],
+            ["transform": true, "<xslt-file>": null, "<xml-base-uri>": "/bar"],
+            ["transform": true, "<xml-base-uri>": "/bar"],
+            ["transform": true, "<xslt-file>": "/foo", "<xml-base-uri>": null],
+            ["transform": true, "<xslt-file>": "/foo"],
+        ].collect { HashMap.ofAll(it) }
+    }
+
+    def "fromParsedArguments() accepts valid args"() {
+        given:
+        def path = FileSystems.getDefault().getPath("/foo")
+        def ident = "/bar"
+        def args = Map("transform", true, "<xslt-file>", "/foo", "<xml-base-uri>", "/bar")
+
+        when:
+        def result = XSLTTransformOperation.fromParsedArguments(args)
+
+        then:
+        result.xsltPath == path
+        result.inputIdentifier == ident
     }
 }

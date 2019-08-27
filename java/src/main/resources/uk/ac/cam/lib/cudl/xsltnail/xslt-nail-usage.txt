@@ -3,5 +3,5 @@ Apply an XSLT program to an XML document.
 %s
 
 Options:
-    --help      Show this information
+    -h, --help  Show this information
     --version   Show the version

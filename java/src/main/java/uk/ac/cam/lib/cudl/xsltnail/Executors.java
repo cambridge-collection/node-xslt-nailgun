@@ -14,9 +14,6 @@ public final class Executors {
      *
      * Each is instructed to shutdown() and then given until the timeout to
      * comply. Any remaining non-shutdown executors are then shutdownNow().
-     *
-     * @param timeout
-     * @param executorServices
      */
     public static void awaitTermination(long timeout, ExecutorService... executorServices) {
         for(ExecutorService es : executorServices)

@@ -1,7 +1,7 @@
 import 'jest-xml-matcher';
 import path from 'path';
 import {InternalError, UserError, using, XSLTExecutor} from '../src';
-import {JVMProcess, timeout} from '../src/_internals';
+import {execute, JVMProcess, timeout} from '../src/_internals';
 
 const testResourcesDir = path.resolve(__dirname, '../java/src/test/resources/uk/ac/cam/lib/cudl/xsltnail');
 
@@ -98,4 +98,21 @@ XSLT execution failed with an internal error, this is most likely a bug:
 uk.ac.cam.lib.cudl.xsltnail.InternalXSLTNailException: \
 Failed to execute transform: java.lang.InterruptedException`;
     await expect(result).rejects.toThrow(new RegExp(`${msg1}|${msg2}`));
+});
+
+test('concurrent execute()', async () => {
+    const count = 100;
+    const executions = Array(count).fill(null).map(async (val, i) => {
+        const buffer = await execute(
+            'example:foo.xml', `<foo n="${i}">hi</foo>`, path.resolve(testResourcesDir, 'a.xsl'));
+        return buffer.toString();
+    });
+    const results = await Promise.all(executions);
+
+    for(let i = 0; i < count; ++i) {
+        expect(results[i]).toEqualXML(`\
+<?xml version="1.0" encoding="UTF-8"?>
+<result><foo n="${i}">hi</foo></result>`);
+    }
+    expect.assertions(count);
 });

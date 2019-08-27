@@ -1,47 +1,61 @@
 package uk.ac.cam.lib.cudl.xsltnail;
 
-import org.docopt.Docopt;
-
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public final class Constants {
+    public static final int EXIT_STATUS_INTERNAL_ERROR = 1;
+    public static final int EXIT_STATUS_USER_ERROR = 2;
+
     public static final String VERSION = "0.0.0";
     public static final long SHUTDOWN_GRACE_PERIOD = 1000 * 5;
 
     // Docopt doesn't provide a way to get at just the usage section of the
     // parsed help (which we need when manually printing usage), so we have to
     // extract it ourselves...
-    public static final String USAGE_STRING_TRANSFORM = (
+    public static final String USAGE_TRANSFORM = (
         "Usage:\n" +
-        "    xslt transform [options] <xslt-file> <xml-base-uri>");
+        "    xslt transform [options] [--] <xslt-file> <xml-base-uri>");
 
-    private static String getTransformDoc() {
-        String template = new BufferedReader(
-            new InputStreamReader(XSLTNail.class.getResourceAsStream("xslt-nail-usage.txt"),
-                StandardCharsets.UTF_8))
-            .lines().collect(Collectors.joining("\n"));
+    private static String getResourceAsString(Class<?> clazz, String path, Charset charset) throws IOException {
+        Objects.requireNonNull(clazz, "clazz may not be null");
+        Objects.requireNonNull(path, "path may not be null");
+        Objects.requireNonNull(charset, "charset may not be null");
 
-        return String.format(template, USAGE_STRING_TRANSFORM);
+        try(InputStreamReader resourceStream = new InputStreamReader(
+                clazz.getResourceAsStream(path), charset);
+            BufferedReader buffer = new BufferedReader(resourceStream)) {
+            return buffer.lines().collect(Collectors.joining("\n"));
+        }
     }
 
-    static Docopt USAGE_TRANSFORM = new Docopt(getTransformDoc())
-        .withExit(false)
-        .withHelp(true)
-        .withVersion(VERSION);
+    private static String requireResourceAsString(Class<?> clazz, String path) {
+        return requireResourceAsString(clazz, path, StandardCharsets.UTF_8);
+    }
 
-    static final Docopt USAGE_SERVER = new Docopt(
-        XSLTNailgunServer.class.getResourceAsStream("nailgun-server-usage.txt"),
-        StandardCharsets.UTF_8)
-        .withExit(true)
-        .withHelp(true)
-        .withVersion(VERSION);
+    private static String requireResourceAsString(Class<?> clazz, String path, Charset charset) {
+        try {
+            return getResourceAsString(clazz, path, charset);
+        }
+        catch (IOException e) {
+            throw new RuntimeException(
+                String.format("Failed to read %s relative to %s", path, clazz.getCanonicalName()), e);
+        }
+    }
+
+    private static String getTransformDoc() {
+        String template = requireResourceAsString(Constants.class, "xslt-nail-usage.txt");
+        return String.format(template, USAGE_TRANSFORM);
+    }
+
+    static final String USAGE_TRANSFORM_FULL = getTransformDoc();
+
+    static final String USAGE_SERVER = requireResourceAsString(Constants.class, "nailgun-server-usage.txt");
 
     private Constants() {}
 }

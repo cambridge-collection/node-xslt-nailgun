@@ -6,13 +6,15 @@ import com.github.benmanes.caffeine.cache.AsyncCacheLoader;
 import com.github.benmanes.caffeine.cache.AsyncLoadingCache;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.vavr.Tuple;
+import io.vavr.Tuple2;
+import io.vavr.collection.Map;
 import io.vavr.control.Either;
 import net.sf.saxon.lib.Logger;
 import net.sf.saxon.lib.StandardErrorListener;
 import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.Xslt30Transformer;
-import org.docopt.DocoptExitException;
 
 import javax.annotation.Nonnull;
 import javax.xml.transform.stream.StreamSource;
@@ -23,17 +25,16 @@ import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
 
 import static java.util.concurrent.Executors.newFixedThreadPool;
+import static uk.ac.cam.lib.cudl.xsltnail.Constants.EXIT_STATUS_INTERNAL_ERROR;
+import static uk.ac.cam.lib.cudl.xsltnail.Constants.EXIT_STATUS_USER_ERROR;
 
 public class XSLTNail implements AutoCloseable {
     private static final java.util.logging.Logger LOG = java.util.logging.Logger.getLogger(XSLTNail.class.getName());
-
-    public static final int EXIT_STATUS_INTERNAL_ERROR = 1;
-    public static final int EXIT_STATUS_USER_ERROR = 2;
 
     private static final Cache<NGServer, XSLTNail> NAILS = Caffeine.newBuilder().weakKeys().build();
 
@@ -48,36 +49,36 @@ public class XSLTNail implements AutoCloseable {
         try {
             NGServer server = context.getNGServer();
             XSLTNail nail = NAILS.get(server, s -> XSLTNail.newInstance());
-            assert nail != null;
+            Objects.requireNonNull(nail, "nail cache returned null");
 
-            Map<String, Object> args = Constants.USAGE_TRANSFORM.parse(context.getArgs());
-            XSLTTransformOperation op = XSLTTransformOperation.fromParsedArguments(args);
-            Either<String, Void> result = nail.transform(op, context.in, context.out);
-            result.orElseRun(error -> {
-                context.err.println(error);
-                context.exit(EXIT_STATUS_USER_ERROR);
-            });
-        }
-        catch(DocoptExitException e) {
-            String message = e.getMessage();
-
-            // The Docopt exception has no message when docopt would print the
-            // short usage text. Docopt doesn't provide a way for us to do that
-            // ourselves, hence this workaround.
-            if(message == null) {
-                message = Constants.USAGE_STRING_TRANSFORM;
-            }
-            context.err.println(message);
-            // We don't want to use the docopt exit codes, as CLI usage errors
-            // (or returning e.g. help text from --help) should not happen, and
-            // are internal module errors.
-            context.exit(EXIT_STATUS_INTERNAL_ERROR);
+            XSLTNailArguments.parse(context.getArgs())
+                .flatMap(XSLTNail::handleHelp)
+                .flatMap(XSLTNail::handleVersion)
+                .mapLeft(msg -> Tuple.of(msg, EXIT_STATUS_INTERNAL_ERROR))
+                .map(XSLTTransformOperation::fromParsedArguments)
+                .flatMap(op -> nail.transform(op, context.in, context.out))
+                .orElseRun(unsuccessfulResult -> {
+                    context.err.println(unsuccessfulResult._1());
+                    context.exit(unsuccessfulResult._2);
+                });
         }
         catch(RuntimeException e) {
             context.err.println("XSLT execution failed with an internal error, this is most likely a bug:");
             e.printStackTrace(context.err);
             context.exit(EXIT_STATUS_INTERNAL_ERROR);
         }
+    }
+
+    private static Either<String, Map<String, Object>> handleHelp(Map<String, Object> args) {
+        if(args.get("--help").exists(Boolean.TRUE::equals))
+            return Either.left(Constants.USAGE_TRANSFORM_FULL);
+        return Either.right(args);
+    }
+
+    private static Either<String, Map<String, Object>> handleVersion(Map<String, Object> args) {
+        if(args.get("--version").exists(Boolean.TRUE::equals))
+            return Either.left(Constants.VERSION);
+        return Either.right(args);
     }
 
     private final AsyncLoadingCache<Path, ? extends CachedXSLT> compiledXsltCache;
@@ -112,7 +113,7 @@ public class XSLTNail implements AutoCloseable {
         errorListener.setLogger(logger);
     }
 
-    public Either<String, Void> transform(@Nonnull XSLTTransformOperation operation, @Nonnull InputStream in, @Nonnull OutputStream out) {
+    public Either<Tuple2<String, Integer>, Void> transform(@Nonnull XSLTTransformOperation operation, @Nonnull InputStream in, @Nonnull OutputStream out) {
 
         // We want to keep the XSLT Executor just for executing stylesheets, so we load the stylesheet in the
         // cache's executor before submitting a job to the XSLT Executor. This request handling thread is blocked
@@ -134,7 +135,7 @@ public class XSLTNail implements AutoCloseable {
         }, this.xsltEvaluateExecutor);
 
         try {
-            return transformJob.get();
+            return transformJob.get().mapLeft(msg -> Tuple.of(msg, EXIT_STATUS_USER_ERROR));
         }
         catch (InterruptedException | ExecutionException | CancellationException e) {
             Throwable cause = e instanceof ExecutionException ? e.getCause() : e;
