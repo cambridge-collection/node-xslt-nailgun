@@ -50,7 +50,7 @@ pack: ensure-clean-checkout compile-typescript build/dist-root build/dist-root/l
 	cd build && npm pack ./dist-root
 
 install:
-	npm install
+	npm ci
 
 clean: clean-build clean-java
 
