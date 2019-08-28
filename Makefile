@@ -41,7 +41,12 @@ ensure-clean-checkout:
 		exit 1 ; \
 	fi
 
-pack: ensure-clean-checkout compile-typescript build/dist-root build/dist-root/lib/vendor build/dist-root/jars build/dist-root/package.json
+normalise-permissions:
+# npm pack includes local file permissions in the .tgz, which can differ between
+# local and CI environments, breaking reproducibility.
+	find build -type f -exec chmod u=rw,g=r,o=r {} +
+
+pack: ensure-clean-checkout compile-typescript build/dist-root build/dist-root/lib/vendor build/dist-root/jars build/dist-root/package.json normalise-permissions
 	cd build && npm pack ./dist-root
 
 install:
@@ -55,4 +60,4 @@ clean-java:
 clean-build:
 	rm -rf build
 
-.PHONY: clean clean-java clean-build compile-typescript compile-java ensure-clean-checkout
+.PHONY: clean clean-java clean-build compile-typescript compile-java ensure-clean-checkout normalise-permissions
