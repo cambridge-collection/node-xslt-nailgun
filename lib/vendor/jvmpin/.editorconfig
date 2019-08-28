@@ -1,0 +1,25 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = tab
+indent_size = 4
+
+# Tests are using 2 space indentation
+[test/**.js]
+indent_style = space
+
+[package.json]
+indent_style = space
+indent_size = 2
+
+[test/*_usage.txt]
+# Whitespace in blank lines between options in the Options: section are
+# required due to a bug in the docopt parser...
+trim_trailing_whitespace = false
+
+[bitbucket-pipelines.yml]
+indent_style = space

@@ -1,0 +1,35 @@
+Execute a nail command on a nailgun server.
+
+Usage:
+  jvmpin-ng [options] <class-or-alias> [<arg>...]
+
+Options:
+  --nailgun-server=<host>
+  --host=<host>
+    The server to connect to.
+ 
+  --nailgun-port=<port>
+  --port=<port>
+    The port to connect to.
+ 
+  --path=<path>
+    The path to the IPC endpoint to use to connect to the server (UNIX domain
+    socket / Windows named pipe).
+ 
+  --stdin-policy=<policy>
+    Defines how stdin data is sent to the server. Default: once-per-request
+    Possible values are:
+      all-after-request: Don't send any stdin data until a SEND_STDIN chunk is
+        received, then send data as fast as possible. This is the behaviour
+        described in http://www.martiansoftware.com/nailgun/protocol.html but
+        is not supported by nailgun-server 1.0.0.
+      once-per-request: Send a single STDIN chunk per SEND_STDIN chunk received
+        from the server. This is the behaviour expected by nailgun-server 1.0.0.
+      all-before-request: Send stdin data as fast as possible as soon as the
+        initial handshake is complete. This behaviour was previously jvmpin's
+        default, and is required by older nailgun servers which didn't transmit
+        SEND_STDIN chunks.
+ 
+  --heartbeat=<interval>
+    The number of milliseconds between heartbeat messages sent to keep the
+    connection alive. 0 disables heartbeats entirely. Default: 1000
