@@ -7,7 +7,7 @@ compile-typescript: install
 	npm run build
 
 compile-java:
-	mvn --file java/pom.xml clean verify
+	mvn --batch-mode --file java/pom.xml clean verify
 
 build/dist-root/jars: build/dist-root compile-java
 	cp -a java/target/jars build/dist-root/
@@ -55,7 +55,7 @@ install:
 clean: clean-build clean-java
 
 clean-java:
-	mvn --quiet --file java/pom.xml clean
+	mvn --batch-mode --file java/pom.xml clean
 
 clean-build:
 	rm -rf build
