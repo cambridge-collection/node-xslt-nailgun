@@ -4,6 +4,7 @@ import DevNull from 'dev-null';
 import getPort from 'get-port';
 import jsonStableStringify from 'json-stable-stringify';
 import memoryStreams from 'memory-streams';
+import promiseFinally from 'p-finally';
 import path from 'path';
 import readline from 'readline';
 import RingBuffer from 'ringbufferjs';
@@ -253,7 +254,7 @@ export class JVMProcess implements Closable {
             const timeoutTimer = setTimeout(() => {
                 if(!starting)
                     return;
-                resolve(this.close().finally(() => {
+                resolve(promiseFinally(this.close(), () => {
                     throw new InternalError(`\
 xslt-nailgun server process failed to start: ${startupTimeout}ms startup timeout expired; stderr:
 ${this.getCurrentStderr()}`);
@@ -384,7 +385,7 @@ export class XSLTExecutor implements Closable {
     public execute(xmlBaseURI: string, xml: string | Buffer, xsltPath: string): Promise<Buffer> {
         const pendingResult = this.doExecute(xmlBaseURI, xml, xsltPath);
         this.activeExecutions.add(pendingResult);
-        return pendingResult.finally(() => {
+        return promiseFinally(pendingResult, () => {
             this.activeExecutions.delete(pendingResult);
         });
     }
