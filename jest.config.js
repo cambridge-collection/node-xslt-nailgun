@@ -18,5 +18,6 @@ module.exports = {
   testEnvironment: 'node',
   moduleNameMapper: {
     '^./vendor/(.*)': '<rootDir>/lib/vendor/$1'
-  }
+  },
+  modulePathIgnorePatterns: ['<rootDir>/build/']
 };
