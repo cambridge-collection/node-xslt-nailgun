@@ -1,0 +1,9 @@
+Test echoing arbitary data through a nailgun server with jvmpin.
+
+Usage:
+    jvmpin-backpressure-test.js [options]
+
+Options:
+    --stream=stdout|stderr      The stream to pipe data through. Default: stdout
+    --stdin-policy=<name>       The stdin throttling policy name to use. Default: once-per-request
+    --write-seconds=<n>         The number of seconds to write input data for. Default: 5

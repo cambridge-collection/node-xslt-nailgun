@@ -1,0 +1,24 @@
+# Intellij project files
+*.iml
+*.ipr
+*.iws
+.idea
+
+# Eclipse project folders 
+.classpath
+.project
+.settings
+
+# Maven output folder
+target
+# Binary files
+*.exe
+*.dll
+*.so*
+*.dll
+*.class
+*.jar
+*.war
+
+# OSX index files
+.DS_Store

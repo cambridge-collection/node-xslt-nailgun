@@ -1,0 +1,8 @@
+Test echoing arbitary data through a nailgun server with jvmpin.
+
+Usage:
+    jvmpin-roundtrip-test.js [options]
+
+Options:
+    --echo           Echo the received data to stdout
+    

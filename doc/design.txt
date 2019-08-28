@@ -1,0 +1,25 @@
+JVMPin needs to solve the following problem/usecase:
+
+Provide an integration path to use clojurescript with nodejs via npm or grunt.
+
+We assume that java is installed by either testing 'java' is on the PATH or found
+in a JAVA_HOME/JRE_HOME if specified. If it is not fail.
+
+We also assume that the nailgun server jar is not provided. (downloaded on installation
+with this library).
+
+This makes the JVMPin more than a simple ng-client (as was the original goal).
+
+Firstly we must provided a validation route to make sure that all the prerequisits
+are fulfilled. This should be placed in an isolated module which performs said checks.
+
+* Verify java is installed
+* Download nailgun jar into a cache if it doesn't exist.
+* Download clojurescript jar into cache if doesn't exist.
+* Check for availible port to start JVM instance on & start it.
+
+Secondly we must make use of the current JVMPin implementation but divide it into
+suitable components. (one of process, the other of socket). The clientConnect should
+connect to a running jvm instance (spun up as a child process). This is currently
+outside of the scope of the JVMPin implementation and should be exclusive to the 
+clojure compiler.

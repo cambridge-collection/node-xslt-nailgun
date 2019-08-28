@@ -1,0 +1,10 @@
+image: ubuntu:18.04
+pipelines:
+    default:
+        - step:
+              script:
+                  - apt-get update && apt-get install --yes --no-install-recommends nodejs npm openjdk-8-jdk-headless maven
+                  - npm install
+                  - mvn --file test/ng-testhost/pom.xml clean package
+                  - node --version
+                  - test/run-tests.sh
