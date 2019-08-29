@@ -10,8 +10,9 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <uk.ac.cam.lib.cudl.xslt-nail.javaVersion>1.8</uk.ac.cam.lib.cudl.xslt-nail.javaVersion>
+        <maven.compiler.source>${uk.ac.cam.lib.cudl.xslt-nail.javaVersion}</maven.compiler.source>
+        <maven.compiler.target>${uk.ac.cam.lib.cudl.xslt-nail.javaVersion}</maven.compiler.target>
         <dependency-jars-dir>${project.build.directory}/jars</dependency-jars-dir>
     </properties>
 
@@ -31,7 +32,7 @@
                 <configuration>
                     <toolchains>
                         <jdk>
-                            <version>8</version>
+                            <version>${uk.ac.cam.lib.cudl.xslt-nail.javaVersion}</version>
                             <vendor>openjdk</vendor>
                         </jdk>
                     </toolchains>
@@ -66,7 +67,14 @@
                 <version>3.1.2</version>
                 <configuration>
                     <archive>
+                        <manifest>
+                            <addDefaultEntries>false</addDefaultEntries>
+                        </manifest>
                         <manifestEntries>
+                            <!-- This has to be set manually, as the actual compiler version used to compile (via the
+                                 active toolchain) is ignored, the default value is the version of Java invoking
+                                 maven. -->
+                            <Build-Jdk-Spec>${uk.ac.cam.lib.cudl.xslt-nail.javaVersion}</Build-Jdk-Spec>
                             <!-- Include git commit info in .jar manifest -->
                             <Last-Commit-Id>${git.commit.id}</Last-Commit-Id>
                             <Last-Commit-Time>${git.commit.time}</Last-Commit-Time>
