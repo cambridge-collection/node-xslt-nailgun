@@ -1,6 +1,6 @@
 # xslt-nailgun
 
-A node XSLT 3.0 library without node native-code dependencies.
+A Node.js XSLT 3.0 library without Node.js native-code dependencies.
 
 Transformations are executed by [SAXON-HE] running in a separate JVM process. Nailgun is used with low per-execution overhead. [Nailgun] is used to achieve low per-execution overhead.
 
@@ -34,7 +34,7 @@ main().catch(e => {
 // <?xml version="1.0" encoding="UTF-8"?><result><foo>hi</foo></result>
 ```
 
-See the [examples](./examples) directory for more.
+See the [examples](./examples) directory for more. Execute [examples/run-all.sh](examples/run-all.sh) to run them all automatically.
 
 ## Goals
 
@@ -45,3 +45,7 @@ This library was created with the following objectives in mind, following experi
 - Support for the latest node versions, now and in the future
 - No native node modules (directly, or via dependencies)
 - Good XSLT performance
+
+## Contributing
+
+See the [contributing](./CONTRIBUTING.md) page.
