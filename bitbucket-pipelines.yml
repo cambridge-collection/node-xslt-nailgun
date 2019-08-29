@@ -28,7 +28,7 @@ pipelines:
             - node
           script:
             - npm ci
-            - npm run test
+            - npm run ci-test
       - step:
           name: Unit test Node 12, Java 13
           image: camdl/node-xslt-nailgun-pipelines:1.0.0-node-12-jre-13
@@ -36,7 +36,7 @@ pipelines:
             - node
           script:
             - npm ci
-            - npm run test
+            - npm run ci-test
       - step:
           name: Integration test Node 8, Java 8
           image: camdl/node-xslt-nailgun-pipelines:1.0.0-node-8-jre-8

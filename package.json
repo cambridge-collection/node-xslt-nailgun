@@ -9,6 +9,7 @@
     "build": "tsc --build tsconfig.build.json",
     "docs": "typedoc --ignoreCompilerErrors --out docs src",
     "test": "jest",
+    "ci-test": "jest --ci --reporters=default --reporters=jest-junit",
     "lint": "tslint --project tsconfig.json",
     "prepack": "echo \"Error: You can't pack/publish from the un-built repo root, use \\`make\\` to build\" >&2; false",
     "_prepack": "[ \"$(git status --porcelain)\" = '' ] || exit 1"
@@ -25,6 +26,7 @@
     "@types/ringbufferjs": "^1.1.0",
     "glob": "^7.1.4",
     "jest": "^24",
+    "jest-junit": "^8.0.0",
     "jest-xml-matcher": "^1.1.1",
     "tmp-promise": "^2.0.2",
     "ts-jest": "^24.0.2",
@@ -57,5 +59,9 @@
     "**/*.js",
     "**/*.d.ts",
     "jars/*.jar"
-  ]
+  ],
+  "jest-junit": {
+    "outputDirectory": "test-reports",
+    "outputName": "jest.xml"
+  }
 }

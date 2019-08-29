@@ -2,4 +2,5 @@
 *.iml
 /java/target
 node_modules
-build
+/build
+/test-reports
