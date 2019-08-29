@@ -18,7 +18,8 @@ build/dist-root/package.json: FILTER = '\
 	.types |= "./lib/index.d.ts" | \
 	.["uk.ac.cam.lib.cudl.xslt-nailgun"].serverJarsPath |= "./jars" | \
 	.scripts.prepack |= $$root.scripts._prepack | \
-	del(.scripts._prepack)'
+	del(.scripts._prepack) | \
+	.publishConfig |= {tag: ($$root.version | if test("^(?:\\d+\\.){2}\\d+$$") then "latest" else "next" end)}'
 build/dist-root/package.json: package.json build/dist-root
 	jq $(FILTER) $< > $@
 

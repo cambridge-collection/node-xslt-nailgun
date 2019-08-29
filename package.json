@@ -2,6 +2,13 @@
   "name": "@lib.cam/xslt-nailgun",
   "version": "0.0.0-beta.0",
   "description": "Execute XSLT with SAXON in a separate JVM with low overhead",
+  "keywords": ["xslt", "saxon", "java", "jvm"],
+  "homepage": "https://bitbucket.org/CUDL/node-xslt-nailgun",
+  "bugs": {
+    "url": "https://bitbucket.org/CUDL/node-xslt-nailgun/issues"
+  },
+  "license": "MIT",
+  "repository": "bitbucket:CUDL/node-xslt-nailgun",
   "engines": {
     "node": ">=v8"
   },
@@ -14,8 +21,10 @@
     "prepack": "echo \"Error: You can't pack/publish from the un-built repo root, use \\`make\\` to build\" >&2; false",
     "_prepack": "[ \"$(git status --porcelain)\" = '' ] || exit 1"
   },
-  "author": "Hal Blackburn <hwtb2@cam.ac.uk>",
-  "license": "MIT",
+  "author": {
+    "name": "Hal Blackburn",
+    "email": "hwtb2@cam.ac.uk"
+  },
   "devDependencies": {
     "@types/bluebird": "^3.5.27",
     "@types/glob": "^7.1.1",
@@ -51,7 +60,6 @@
       "<rootDir>/build/"
     ]
   },
-  "keywords": [],
   "uk.ac.cam.lib.cudl.xslt-nailgun": {
     "serverJarsPath": "java/target/jars"
   },
