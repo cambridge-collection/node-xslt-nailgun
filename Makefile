@@ -23,6 +23,9 @@ build/dist-root/package.json: FILTER = '\
 build/dist-root/package.json: package.json build/dist-root
 	jq $(FILTER) $< > $@
 
+build/dist-root/README.md: README.md build/dist-root
+	cp $< $@
+
 build/dist-root/lib/vendor: build/dist-root/lib
 	cp -a lib/vendor build/dist-root/lib
 
@@ -47,7 +50,7 @@ normalise-permissions:
 # local and CI environments, breaking reproducibility.
 	find build -type f -exec chmod u=rw,g=r,o=r {} +
 
-pack: ensure-clean-checkout compile-typescript build/dist-root build/dist-root/lib/vendor build/dist-root/jars build/dist-root/package.json normalise-permissions
+pack: ensure-clean-checkout compile-typescript build/dist-root build/dist-root/lib/vendor build/dist-root/jars build/dist-root/package.json build/dist-root/README.md normalise-permissions
 	cd build && npm pack ./dist-root
 
 install:
