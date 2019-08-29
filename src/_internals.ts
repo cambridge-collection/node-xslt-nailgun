@@ -403,7 +403,9 @@ Unsupported address type: ${process.address.addressType} - jvmpin only supports 
 
         const error = new Promise<never>((resolve, reject) => {
             conn.on('error', e => {
-                reject(new InternalError('Error communicating with xslt-nailgun server', e));
+                const serverError = errorMessageOrFallback(process.getCurrentStderr(), ' contained no output.');
+                reject(new InternalError(`\
+Error communicating with xslt-nailgun server. Nailgun server stderr${serverError}`, e));
             });
         });
         const connected = new Promise<void>((resolve) => {
