@@ -91,6 +91,7 @@
                         </goals>
                         <phase>package</phase>
                         <configuration>
+                            <fixZipExternalFileAttributes>true</fixZipExternalFileAttributes>
                             <zipDateTime>${git.commit.time}</zipDateTime>
                             <zipDateTimeFormatPattern>yyyy-MM-dd'T'HH:mm:ssZ</zipDateTimeFormatPattern>
                         </configuration>
