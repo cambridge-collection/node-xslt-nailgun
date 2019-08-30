@@ -70,7 +70,8 @@
   },
   "files": [
     "**/*.js",
-    "**/*.d.ts",
+    "**/*.map",
+    "**/*.ts",
     "jars/*.jar"
   ],
   "jest-junit": {

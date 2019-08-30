@@ -17,6 +17,7 @@
     "rootDirs": ["src", "lib"],
     "resolveJsonModule": true,
     "sourceMap": true,
+    "sourceRoot": "../src",
     "strictNullChecks": true,
     "target": "es2017",
     "lib": ["es2017"]
