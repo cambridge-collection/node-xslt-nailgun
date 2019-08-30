@@ -409,10 +409,10 @@ Error communicating with xslt-nailgun server. Nailgun server stderr${serverError
             });
         });
         const connected = new Promise<void>((resolve) => {
-            conn.on('connect', resolve);
+            conn.on('connect', () => resolve());
         });
         const connectionClosed = new Promise<void>((resolve) => {
-            conn.on('close', resolve);
+            conn.on('close', () => resolve());
         });
 
         await abortOnError(connected, error);
