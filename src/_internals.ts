@@ -3,12 +3,12 @@ import {ChildProcess, spawn} from 'child_process';
 import DevNull from 'dev-null';
 import getPort from 'get-port';
 import jsonStableStringify from 'json-stable-stringify';
-import memoryStreams from 'memory-streams';
 import promiseFinally from 'p-finally';
 import path from 'path';
 import readline from 'readline';
 import RingBuffer from 'ringbufferjs';
 import {Readable} from 'stream';
+import {WritableStreamBuffer} from 'stream-buffers';
 import TraceError from 'trace-error';
 import * as util from 'util';
 import {Closable, using} from './_resources';
@@ -429,8 +429,8 @@ Error communicating with xslt-nailgun server. Nailgun server stderr${serverError
             });
         });
 
-        const stdoutData = new memoryStreams.WritableStream();
-        const stderrData = new memoryStreams.WritableStream();
+        const stdoutData = new WritableStreamBuffer();
+        const stderrData = new WritableStreamBuffer();
         proc.stdout.pipe(stdoutData);
         proc.stderr.pipe(stderrData);
         proc.stdin.end(xml);
@@ -438,21 +438,21 @@ Error communicating with xslt-nailgun server. Nailgun server stderr${serverError
         const [status] = await abortOnError(Promise.all([exitStatus, connectionClosed]), error);
 
         if(status === EXIT_STATUS_OK) {
-            return stdoutData.toBuffer();
+            return getBytes(stdoutData);
         }
         else if(status === EXIT_STATUS_USER_ERROR) {
             throw new UserError(`\
-XSLT evaluation produced an error: ${stderrData.toString()}`, xml, xmlBaseURI, xsltPath);
+XSLT evaluation produced an error: ${getText(stderrData)}`, xml, xmlBaseURI, xsltPath);
         }
         else {
             if(status === EXIT_STATUS_INTERNAL_ERROR) {
                 throw new InternalError(`\
 XSLT nail failed to execute transform due to an internal error\
-${errorMessageOrFallback(stderrData.toString(), ' but no error message is available.')}`);
+${errorMessageOrFallback(getText(stderrData), ' but no error message is available.')}`);
             }
             else {
                 const nailErrorMsg = errorMessageOrFallback(
-                    stderrData.toString(), ', but no error message is available.');
+                    getText(stderrData), ', but no error message is available.');
                 const serverStderrMsg = errorMessageOrFallback(
                     process.getCurrentStderr(), '',
                     '\n\nNailgun server stderr output (this may or may not relate to the above error):\n%s');
@@ -462,6 +462,14 @@ XSLT nail exited with unexpected status ${status}${nailErrorMsg}${serverStderrMs
             }
         }
     }
+}
+
+function getBytes(streamBuffer: WritableStreamBuffer): Buffer {
+    return streamBuffer.getContents() || Buffer.alloc(0);
+}
+
+function getText(streamBuffer: WritableStreamBuffer): string {
+    return streamBuffer.getContentsAsString() || '';
 }
 
 function errorMessageOrFallback(error: string, fallback: string, template?: string) {
