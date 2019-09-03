@@ -59,7 +59,7 @@ test('execute() rejects with UserError when execution of XSLT raises an error', 
 });
 
 test('execute() cannot be invoked after executor is closed', async () => {
-    const executor = XSLTExecutor.getInstance();
+    const executor = XSLTExecutor.getInstance({unique: true});
     await executor.close();
     const result = executor.execute('/tmp/foo.xml', '<a/>', path.resolve(testResourcesDir, 'a.xsl'));
 
@@ -67,7 +67,7 @@ test('execute() cannot be invoked after executor is closed', async () => {
 });
 
 test('execute() rejects with InternalError when unable to connect to the nailgun server', async () => {
-    const result = using(XSLTExecutor.getInstance(), async executor => {
+    const result = using(XSLTExecutor.getInstance({unique: true}), async executor => {
         const serverProcess: JVMProcess = await (executor as any).serverProcessRef.resource;
 
         // Report the server's listen address incorrectly so that connecting fails
@@ -82,7 +82,7 @@ test('execute() rejects with InternalError when unable to connect to the nailgun
 });
 
 test('execute() rejects with InternalError when nailgun server closes before execution is complete', async () => {
-    const result = using(XSLTExecutor.getInstance(), async executor => {
+    const result = using(XSLTExecutor.getInstance({unique: true}), async executor => {
         const serverProcess: JVMProcess = await (executor as any).serverProcessRef.resource;
         await serverProcess.serverStarted;
         const _result = executor.execute('/tmp/foo.xml', '<a/>', path.resolve(testResourcesDir, 'infinite-loop.xsl'));

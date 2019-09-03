@@ -45,6 +45,12 @@ export enum AddressType { local = 'local', network = 'network' }
 
 export interface CreateOptions {
     jvmExecutable?: string;
+    /**
+     * If true, the returned executor always uses a newly spawned nailgun
+     * server process, rather than sharing with other concurrently-active
+     * executors.
+     */
+    unique?: boolean;
 }
 type StrictCreateOptions = Required<CreateOptions>;
 
@@ -92,7 +98,7 @@ export class IPServerAddress {
     }
 }
 
-interface JVMProcessOptions extends Required<CreateOptions>, ServerAddress {
+interface JVMProcessOptions extends Omit<Required<CreateOptions>, 'unique'>, ServerAddress {
     classpath: string;
     startupTimeout?: number;
 }
@@ -100,6 +106,7 @@ interface JVMProcessOptions extends Required<CreateOptions>, ServerAddress {
 function populateDefaults(options: CreateOptions): StrictCreateOptions {
     return {
         jvmExecutable: options.jvmExecutable || 'java',
+        unique: options.unique === true,
     };
 }
 
@@ -345,12 +352,16 @@ const serverProcesses = new Map<string, AutoCloser<JVMProcess>>();
 function getServerProcessReference(options: StrictCreateOptions): AutoCloserReference<JVMProcess> {
     const optionsKey = jsonStableStringify(options);
     const procCloser = serverProcesses.get(optionsKey);
-    if(procCloser === undefined || procCloser.isClosed()) {
+    if(options.unique || procCloser === undefined || procCloser.isClosed()) {
         const autoCloser = ReferenceCountAutoCloser.createAndReference(JVMProcess.listeningOnRandomPort({
             ...options,
             classpath: getClasspath(),
         }));
-        serverProcesses.set(optionsKey, autoCloser.closer);
+
+        // Don't share the server process if an unique executor is requested.
+        if(!options.unique) {
+            serverProcesses.set(optionsKey, autoCloser.closer);
+        }
         return autoCloser.ref;
     }
     else {
