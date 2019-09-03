@@ -168,46 +168,11 @@ export class ReferenceCountAutoCloser<T extends Closable> implements AutoCloser<
 
 type ProcessExit = {code: number} | {signal: string};
 
-type RandomPortJVMProcessOptions = Omit<JVMProcessOptions, 'addressType' | 'listenAddress'> & {
-    attempts?: number,
-    getPort?: (options?: getPort.Options) => Promise<number>,
-};
+type RandomPortJVMProcessOptions = Omit<JVMProcessOptions, 'addressType' | 'listenAddress'>;
 
 export class JVMProcess implements Closable {
     public static async listeningOnRandomPort(options: RandomPortJVMProcessOptions): Promise<JVMProcess> {
-        const attempts = options.attempts || 3;
-        const _getPort = options.getPort || getPort;
-        if(attempts < 1)
-            throw new Error(`options.attempts must be >= 1, got: ${attempts}`);
-
-        let proc;
-        let attempt = 1;
-        while(true) {
-            const host = '127.0.0.1';
-            const port = await _getPort({host});
-
-            proc = new JVMProcess({
-                ...options, addressType:
-                AddressType.network,
-                listenAddress: `${host}:${port}`});
-
-            if(attempt === attempts) {
-                return proc;
-            }
-
-            try {
-                await proc.serverStarted;
-                return proc;
-            }
-            catch(e) {
-                if(!(/xslt-nailgun server process failed to start/.test(e.message)
-                    && /Address already in use/.test(e.message))) {
-                    return proc;
-                }
-                // bind failed, try again
-            }
-            attempt += 1;
-        }
+        return new JVMProcess({...options, addressType: AddressType.network, listenAddress: '127.0.0.1:0'});
     }
 
     private static createExitObject(code: number | null, signal: string | null): ProcessExit {
@@ -220,7 +185,7 @@ export class JVMProcess implements Closable {
     }
 
     public readonly processExit: Promise<ProcessExit>;
-    public readonly serverStarted: Promise<void>;
+    public readonly serverStarted: Promise<IPServerAddress | LocalServerAddress>;
     public readonly address: IPServerAddress | LocalServerAddress;
 
     private options: JVMProcessOptions;
@@ -254,7 +219,7 @@ export class JVMProcess implements Closable {
             const timeoutTimer = setTimeout(() => {
                 if(!starting)
                     return;
-                resolve(promiseFinally(this.close(), () => {
+                reject(promiseFinally(this.close(), () => {
                     throw new InternalError(`\
 xslt-nailgun server process failed to start: ${startupTimeout}ms startup timeout expired; stderr:
 ${this.getCurrentStderr()}`);
@@ -268,13 +233,28 @@ ${this.getCurrentStderr()}`);
 
             const rl = readline.createInterface({input: stdout, crlfDelay: Infinity});
             rl.on('line', (line) => {
-                if(/^NGServer [\d.]+ started/.test(line)) {
-                    rl.removeAllListeners('line');
-                    rl.close();
-                    stdout.pipe(new DevNull());
-                    cancelStartupTimeout();
-                    resolve();
+                if(!/^NGServer [\d.]+ started/.test(line)) { return; }
+
+                // Port 0 means the server selects a port to listen on. We need to check the output to see which port
+                // it's using.
+                let address;
+                if(this.address.addressType === AddressType.network && this.address.port === 0) {
+                    const match = / port (\d+)\.$/.exec(line);
+                    if(!match || match.length !== 2) {
+                        reject(new Error(`Failed to parse port from NGServer startup message: ${line}`));
+                        return;
+                    }
+                    address = new IPServerAddress(this.address.host, parseInt(match[1], 10));
                 }
+                else {
+                    address = this.address;
+                }
+
+                rl.removeAllListeners('line');
+                rl.close();
+                stdout.pipe(new DevNull());
+                cancelStartupTimeout();
+                resolve(address);
             });
 
             this.process.on('exit', (code, signal) => {
@@ -395,11 +375,11 @@ export class XSLTExecutor implements Closable {
             throw new Error('execute() called following close()');
 
         const process = (await (await this.serverProcessRef).resource);
-        await process.serverStarted;
-        if(process.address.addressType !== AddressType.network)
+        const address = await process.serverStarted;
+        if(address.addressType !== AddressType.network)
             throw new Error(`\
 Unsupported address type: ${process.address.addressType} - jvmpin only supports TCP connections`);
-        const conn = jvmpin.createConnection(process.address.port, process.address.host);
+        const conn = jvmpin.createConnection(address.port, address.host);
 
         const error = new Promise<never>((resolve, reject) => {
             conn.on('error', e => {
