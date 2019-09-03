@@ -59,7 +59,7 @@ function parseServerAddress(address: ServerAddress) {
     return IPServerAddress.fromListenAddress(address.listenAddress);
 }
 
-class LocalServerAddress {
+export class LocalServerAddress {
     public readonly addressType: AddressType.local = AddressType.local;
     public readonly listenAddress: string;
 
@@ -68,7 +68,7 @@ class LocalServerAddress {
     }
 }
 
-class IPServerAddress {
+export class IPServerAddress {
     public static fromListenAddress(listenAddress: string) {
         const [host, portString] = listenAddress.split(':', 2);
         const port = parseInt(portString, 10);
@@ -203,9 +203,17 @@ export class JVMProcess implements Closable {
                 '--address-type', this.options.addressType, this.options.listenAddress],
             {stdio: ['ignore', 'pipe', 'pipe']});
 
-        this.processExit = new Promise<ProcessExit>(resolve => {
+        this.processExit = new Promise<ProcessExit>((resolve, reject) => {
             this.process.on('exit', (code, signal) => {
                 resolve(JVMProcess.createExitObject(code, signal));
+            });
+            this.process.on('error', error => {
+                if(this.process.pid === undefined) {
+                    reject(new InternalError('xslt-nailgun server process failed to start', error));
+                }
+                else {
+                    reject(new InternalError("xslt-nailgun server process emitted 'error' before 'exit'", error));
+                }
             });
         });
 
@@ -281,15 +289,17 @@ ${this.getCurrentStderr()}`, error));
         stderrLines.on('line', line => {
             this.stderrLines.enq(line);
         });
+
+        this.handlePromiseRejections();
     }
 
     public async close(): Promise<void> {
         this.process.kill();
         const timer = timeout(6000, 'timeout');
-        const result = await Promise.race([this.processExit, timer.finished]);
+        const result = await Promise.race([this.processExit.catch(() => undefined), timer.finished]);
         if(result === 'timeout') {
             this.process.kill('SIGKILL');
-            await this.processExit;
+            await this.processExit.catch(() => undefined);
         }
         else {
             timer.close();
@@ -298,6 +308,22 @@ ${this.getCurrentStderr()}`, error));
 
     public getCurrentStderr(): string {
         return this.stderrLines.peekN(this.stderrLines.size()).join('\n');
+    }
+
+    /**
+     * Prevent UnhandledPromiseRejectionWarning originating from our exported
+     * promise properties.
+     */
+    private handlePromiseRejections() {
+        // If someone creates an executor but never invokes execute() then
+        // nothing will await our exported promises, which will trigger an
+        // UnhandledPromiseRejectionWarning if the server also fails for some
+        // reason. In this case, the warning is bogus, so we ignore it by
+        // attaching a noop error handler to the promises (which has no effect
+        // other than telling node that someone has looked at the promise
+        // result).
+        this.serverStarted.catch(() => undefined);
+        this.processExit.catch(() => undefined);
     }
 }
 

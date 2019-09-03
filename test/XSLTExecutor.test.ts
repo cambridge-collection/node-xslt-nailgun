@@ -1,7 +1,7 @@
 import 'jest-xml-matcher';
 import path from 'path';
 import {InternalError, UserError, using, XSLTExecutor} from '../src';
-import {execute, JVMProcess, timeout} from '../src/_internals';
+import {execute, IPServerAddress, JVMProcess, timeout} from '../src/_internals';
 
 const testResourcesDir = path.resolve(__dirname, '../java/src/test/resources/uk/ac/cam/lib/cudl/xsltnail');
 
@@ -69,7 +69,10 @@ test('execute() cannot be invoked after executor is closed', async () => {
 test('execute() rejects with InternalError when unable to connect to the nailgun server', async () => {
     const result = using(XSLTExecutor.getInstance(), async executor => {
         const serverProcess: JVMProcess = await (executor as any).serverProcessRef.resource;
-        await serverProcess.close();
+
+        // Report the server's listen address incorrectly so that connecting fails
+        (serverProcess as any).serverStarted =
+            serverProcess.serverStarted.then(() => new IPServerAddress('127.0.0.1', 1));
 
         return executor.execute('/tmp/foo.xml', '<a/>', path.resolve(testResourcesDir, 'a.xsl'));
     });
