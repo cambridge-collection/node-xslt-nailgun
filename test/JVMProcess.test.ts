@@ -1,7 +1,5 @@
-import fs from 'fs';
 import glob from 'glob';
-import {file} from 'tmp-promise';
-import util from 'util';
+import {tmpName} from 'tmp-promise';
 import {using} from '../src';
 import {AddressType, getClasspath, IPServerAddress, JVMProcess, LocalServerAddress} from '../src/_internals';
 
@@ -24,8 +22,7 @@ test.each([
     jest.setTimeout(1000 * 60 * 60);
     expect.assertions(1);
 
-    const {path} = await file();
-    await util.promisify(fs.unlink)(path);
+    const path = await tmpName();
 
     await using(new JVMProcess({
         addressType: AddressType.local,
@@ -41,8 +38,7 @@ test.each([
 test('JVMProcess serverStarted Promise resolves when server has started', async () => {
     expect.assertions(2);
 
-    const {path} = await file();
-    await util.promisify(fs.unlink)(path);
+    const path = await tmpName();
 
     await using(new JVMProcess({
         addressType: AddressType.local,
