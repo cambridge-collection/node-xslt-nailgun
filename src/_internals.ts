@@ -2,7 +2,6 @@ import assert from 'assert';
 import BufferList from 'bl';
 import {ChildProcess, spawn} from 'child_process';
 import DevNull from 'dev-null';
-import getPort from 'get-port';
 import jsonStableStringify from 'json-stable-stringify';
 import promiseFinally from 'p-finally';
 import path from 'path';
