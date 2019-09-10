@@ -9,7 +9,7 @@ charset = utf-8
 indent_size = 4
 indent_style = space
 
-[{*.json,*.config.js,*.yml}]
+[*.{java,json,config.js,yml}]
 indent_size = 2
 
 # Don't corrupt git patch edit files
