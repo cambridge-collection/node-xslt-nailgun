@@ -8,23 +8,26 @@ import spock.lang.Unroll
 import java.nio.file.FileSystems
 
 import static io.vavr.API.Map
+import static io.vavr.API.Option
 
 class XSLTTransformOperationSpec extends Specification {
     def "properties follow constructor arguments"() {
         given:
-        def path = FileSystems.getDefault().getPath("/foo")
-        def ident = "/bar"
+        def xsltPath = FileSystems.getDefault().getPath("/foo")
+        def xmlPath = Option(FileSystems.getDefault().getPath("/foo"))
+        def ident = Option("/bar")
 
         when:
-        def op = new XSLTTransformOperation(path, ident)
+        def op = new XSLTTransformOperation(xsltPath, xmlPath, ident)
 
         then:
-        path.is(op.xsltPath)
+        xsltPath.is(op.xsltPath)
+        xmlPath.is(op.xmlPath)
         ident.is(op.inputIdentifier)
     }
 
     @Unroll
-    def "fromParsedArguments() rejects args without expected keys"(Map<String, String> values) {
+    def "fromParsedArguments() requires transform and <xslt-file> keys"(Map<String, String> values) {
         when:
         XSLTTransformOperation.fromParsedArguments(values)
 
@@ -34,25 +37,28 @@ class XSLTTransformOperationSpec extends Specification {
         where:
         values << [
             [:],
-            ["transform": false, "<xslt-file>": "/foo", "<xml-base-uri>": "/bar"],
-            ["transform": true, "<xslt-file>": null, "<xml-base-uri>": "/bar"],
-            ["transform": true, "<xml-base-uri>": "/bar"],
-            ["transform": true, "<xslt-file>": "/foo", "<xml-base-uri>": null],
-            ["transform": true, "<xslt-file>": "/foo"],
+            ["transform": false, "<xslt-file>": "/foo"],
+            ["transform": true, "<xslt-file>": null],
+            ["<xslt-file>": "/foo"],
+            ["transform": true],
         ].collect { HashMap.ofAll(it) }
     }
 
-    def "fromParsedArguments() accepts valid args"() {
-        given:
-        def path = FileSystems.getDefault().getPath("/foo")
-        def ident = "/bar"
-        def args = Map("transform", true, "<xslt-file>", "/foo", "<xml-base-uri>", "/bar")
+    @Unroll
+    def "fromParsedArguments() accepts valid args"(Map<String, Object> args, expected) {
+        expect:
+        XSLTTransformOperation.fromParsedArguments(args) == expected
 
-        when:
-        def result = XSLTTransformOperation.fromParsedArguments(args)
-
-        then:
-        result.xsltPath == path
-        result.inputIdentifier == ident
+        where:
+        [args, expected] << [
+            [["transform": true, "<xslt-file>": "/foo", "<xml-file>": null, "--system-identifier": null], ["/foo", null, null]],
+            [["transform": true, "<xslt-file>": "/foo", "<xml-file>": "/bar", "--system-identifier": "/baz"], ["/foo", "/bar", "/baz"]]
+        ].collect { [
+            HashMap.ofAll(it[0]),
+            new XSLTTransformOperation(
+                FileSystems.getDefault().getPath(it[1][0]),
+                Option(it[1][1]).map(FileSystems.getDefault().&getPath),
+                Option(it[1][2]))
+        ] }
     }
 }

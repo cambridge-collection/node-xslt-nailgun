@@ -1,34 +1,19 @@
 package uk.ac.cam.lib.cudl.xsltnail;
 
-import io.vavr.Predicates;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
-import io.vavr.collection.*;
+import io.vavr.collection.List;
+import io.vavr.collection.Map;
 import io.vavr.control.Either;
-import io.vavr.Predicates;
 import io.vavr.control.Option;
 
-import java.util.HashMap;
 import java.util.Objects;
-import java.util.OptionalInt;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
-import static io.vavr.API.*;
-import static io.vavr.Predicates.isIn;
-import static io.vavr.Predicates.anyOf;
-import static io.vavr.Predicates.exists;
+import static io.vavr.API.Map;
 import static uk.ac.cam.lib.cudl.xsltnail.XSLTNailArguments.Parsers.*;
 
 class XSLTNailArguments {
-
-    private static final Set<String> HELP_OPTIONS = List.of("-h", "--help").toSet();
-    private static final Set<String> VERSION_OPTIONS = List.of("-v", "--version").toSet();
-    private static final Set<String> VALUE_OPTIONS = List.of("--system-identifier").toSet();
-
-    private static final Predicate<String> IS_HELP_OPT = isIn("-h", "--help");
-    private static final Predicate<String> IS_VERSION_OPT = isIn("--version");
-    private static final Predicate<String> IS_KNOWN_OPT = anyOf(IS_HELP_OPT, IS_VERSION_OPT);
 
     interface Parser {
         Either<String, Tuple2<List<Tuple2<String, Object>>, List<String>>>
@@ -109,18 +94,18 @@ class XSLTNailArguments {
                     .get();
         }
 
-        public static Parser times(Parser parser, int min) { return times(parser, min, OptionalInt.empty()); }
-        public static Parser times(Parser parser, int min, int max) { return times(parser, min, OptionalInt.of(max)); }
-        public static Parser times(Parser parser, int min, OptionalInt max) {
+        public static Parser times(Parser parser, int min) { return times(parser, min, Option.none()); }
+        public static Parser times(Parser parser, int min, int max) { return times(parser, min, Option.some(max)); }
+        public static Parser times(Parser parser, int min, Option<Integer> max) {
             Objects.requireNonNull(max, "max cannot be null");
             if(min < 0)
                 throw new IllegalArgumentException(String.format("min must be >= 0; min=%d", min));
-            if(max.isPresent() && max.getAsInt() < min)
-                throw new IllegalArgumentException(String.format("max must be >= min; min=%d, max=%d", min, max.getAsInt()));
+            if(max.isDefined() && max.get() < min)
+                throw new IllegalArgumentException(String.format("max must be >= min; min=%d, max=%d", min, max.get()));
 
             return (List<Tuple2<String, Object>> values, List<String> args) -> {
                 Either<String, Tuple2<List<Tuple2<String, Object>>, List<String>>> result = failure("times(*, 0, 0)");
-                for(int i = 0; !max.isPresent() || i < max.getAsInt(); ++i) {
+                for(int i = 0; !max.isDefined() || i < max.get(); ++i) {
                     result = parser.parse(values, args);
                     if(result.isLeft())
                         return i >= min ? success(values, args) : result;
@@ -177,11 +162,10 @@ class XSLTNailArguments {
         private static final Parser HELP_OPTION = firstOf(option("--help"), option("-h", "--help"));
         private static final Parser VERSION_OPTION = option("--version");
 
-
         private static final Parser SUBCOMMAND_TRANSFORM = constant("transform");
         private static final Parser ARG_SEPARATOR = constant("--");
         private static final Parser SYSTEM_ID_OPTION = optionWithValue("--system-identifier");
-        private static final Parser OPTIONS = opt(firstOf(SYSTEM_ID_OPTION));
+        private static final Parser OPTIONS = opt(firstOf(SYSTEM_ID_OPTION, HELP_OPTION));
         private static final Parser XSLT_FILE = value("<xslt-file>");
         private static final Parser XML_FILE = value("<xml-file>");
         private static final Parser NOT_OPTLIKE_XSLT_FILE = unambiguousValue("<xslt-file>");
@@ -192,19 +176,18 @@ class XSLTNailArguments {
             // Don't allow options after the -- argument separator
             allOf(SUBCOMMAND_TRANSFORM, OPTIONS, ARG_SEPARATOR, XSLT_FILE, opt(XML_FILE)));
 
+        // Help matches when --help/-h exists anywhere in the args. However it
+        // only matches if the args don't match a real usage pattern.
         private static final Parser HELP = allOf(
             times(allOf(not(HELP_OPTION, "not --help"), any()), 0),
             HELP_OPTION, times(any(), 0));
 
-        private static final Parser VERSION = allOf(
-            times(allOf(not(VERSION_OPTION, "not --version"), any()), 0),
-            VERSION_OPTION, times(any(), 0));
-
+        private static final Parser VERSION = VERSION_OPTION;
         private static final Parser ROOT = firstOf(TRANSFORM, HELP, VERSION);
     }
 
-    public static Either<Option<String>, Map<String, Object>> _parse(String... args) { return _parse(List.of(args)); }
-    public static Either<Option<String>, Map<String, Object>> _parse(List<String> args) {
+    public static Either<Option<String>, Map<String, Object>> parse(String... args) { return parse(List.of(args)); }
+    public static Either<Option<String>, Map<String, Object>> parse(List<String> args) {
         return XSLTNailArgumentsParser.ROOT.parse(args)
             .fold(str -> Either.left(Option.none()),
                   result -> result._2.isEmpty() ?
@@ -219,64 +202,6 @@ class XSLTNailArguments {
             result = result.put(value);
         }
         return Either.right(result.merge(DEFAULT_RESULT));
-    }
-
-    /**
-     * Parse a command line argument list conforming to {@link Constants#USAGE_TRANSFORM_FULL}.
-     *
-     * @param argv The argument list
-     * @return A right value containing a map from the symbolic names in the
-     *         usage text (e.g. "<xslt-file>") to the parsed value.
-     */
-    public static Either<String, Map<String, Object>> parse(String[] argv) {
-        List<String> args = List.of(argv);
-        List<String> options = getOptionCandidates(args);
-
-        return Match(options).of(
-            Case($(exists(IS_HELP_OPT)),
-                Either.right(withDefaults(Map("--help", true)))),
-            Case($(exists(IS_VERSION_OPT)),
-                Either.right(withDefaults(Map("--version", true)))),
-            // We don't have any
-            Case($(exists(Predicates.allOf(XSLTNailArguments::isOption, Predicates.not(IS_KNOWN_OPT)))),
-                Either.left(Constants.USAGE_TRANSFORM)),
-            Case($(), () -> extractValues(args))
-        );
-    }
-
-    private static Map<String, Object> withDefaults(Map<String, Object> values) {
-        return values.merge(DEFAULT_RESULT);
-    }
-
-    private static List<String> getOptionCandidates(List<String> args) {
-//        Tuple2<List<String>, List<String>> split = args.splitAt(3);
-        Tuple2<List<String>, List<String>> split = args.splitAt(isIn("--"));
-        // The first half contains all the elements if "--" does not occur
-        return split._2().isEmpty() ? split._1(): List.empty();
-    }
-
-    private static List<String> getPositionals(List<String> args) {
-        return args.splitAt(isIn("--")).apply((a, b) -> {
-            a = a.filter(Predicates.not(XSLTNailArguments::isOption));
-            return b.isEmpty() ? a : Stream.concat(a, b.slice(1, b.length())).toList();
-        });
-    }
-
-    private static Either<String, Map<String, Object>> extractValues(List<String> args) {
-        List<String> positionals = getPositionals(args);
-
-        return Match(positionals).of(
-            Case($((List<String> l) -> l.length() == 3 && "transform".equals(l.get(0))), (l) ->
-                Either.right(withDefaults(Map(
-                    "transform", true,
-                    "<xslt-file>", l.get(1),
-                    "<xml-base-uri>", l.get(2))))),
-            Case($(), Either.left(Constants.USAGE_TRANSFORM))
-        );
-    }
-
-    private static boolean isOption(String s) {
-        return (s.length() == 2 && s.startsWith("-") && !s.equals("--")) || (s.length() > 2 && s.startsWith("--"));
     }
 
     private XSLTNailArguments() {}

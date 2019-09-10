@@ -1,7 +1,23 @@
-Apply an XSLT program to an XML document.
+Apply an XSLT program to an XML document passed on stdin.
 
 %s
 
+Positional Arguments:
+    <xslt-file>
+        The filesystem path to XSLT file to execute.
+
+    <xml-file>
+        The filesystem path to the input data to transform. Stdin is read if -
+        is specified.
+
 Options:
+    --system-identifier <uri>
+        The URI of the XML input - e.g. a file:// URI identifying the location
+        of the XML file. If <xml-file> is specified, this defaults to the URL
+        of the file.
     -h, --help  Show this information
     --version   Show the version
+
+Notes:
+    The input "XML" file doesn't actually need to be XML, it can be any data
+    that the XSLT program expects, but generally is XML.

@@ -39,7 +39,7 @@ class ExecutorsSpec extends Specification {
                 try {
                     keepRunningSignal.await()
                 }
-                catch (InterruptedException e) {
+                catch (InterruptedException ignored) {
                     // ignore - refuse to shutdown
                     assert interruptedSignal.getCount() > 0
                     interruptedSignal.countDown()

@@ -10,6 +10,7 @@ import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Map;
 import io.vavr.control.Either;
+import io.vavr.control.Option;
 import net.sf.saxon.lib.Logger;
 import net.sf.saxon.lib.StandardErrorListener;
 import net.sf.saxon.s9api.Processor;
@@ -17,11 +18,11 @@ import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.Xslt30Transformer;
 
 import javax.annotation.Nonnull;
+import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -52,7 +53,8 @@ public class XSLTNail implements AutoCloseable {
             Objects.requireNonNull(nail, "nail cache returned null");
 
             XSLTNailArguments.parse(context.getArgs())
-                .flatMap(XSLTNail::handleHelp)
+                .mapLeft(XSLTNail::handleInvalidArgumentMessage)
+                .flatMap(XSLTNail::handleHelpRequest)
                 .flatMap(XSLTNail::handleVersion)
                 .mapLeft(msg -> Tuple.of(msg, EXIT_STATUS_INTERNAL_ERROR))
                 .map(XSLTTransformOperation::fromParsedArguments)
@@ -69,16 +71,19 @@ public class XSLTNail implements AutoCloseable {
         }
     }
 
-    private static Either<String, Map<String, Object>> handleHelp(Map<String, Object> args) {
-        if(args.get("--help").exists(Boolean.TRUE::equals))
-            return Either.left(Constants.USAGE_TRANSFORM_FULL);
-        return Either.right(args);
+    private static String handleInvalidArgumentMessage(Option<String> message) {
+        return message.map(m -> String.format("Error: %s\n\n%s", m, Constants.USAGE_TRANSFORM))
+            .getOrElse(Constants.USAGE_TRANSFORM);
+    }
+
+    private static Either<String, Map<String, Object>> handleHelpRequest(Map<String, Object> args) {
+        return args.get("--help").exists(Boolean.TRUE::equals) ?
+            Either.left(Constants.USAGE_TRANSFORM_FULL) : Either.right(args);
     }
 
     private static Either<String, Map<String, Object>> handleVersion(Map<String, Object> args) {
-        if(args.get("--version").exists(Boolean.TRUE::equals))
-            return Either.left(Constants.VERSION);
-        return Either.right(args);
+        return args.get("--version").exists(Boolean.TRUE::equals) ?
+            Either.left(Constants.VERSION) : Either.right(args);
     }
 
     private final AsyncLoadingCache<Path, ? extends CachedXSLT> compiledXsltCache;
@@ -124,13 +129,14 @@ public class XSLTNail implements AutoCloseable {
                 MemoryLogger logger = MemoryLogger.newInstance();
                 setLogger(tx, logger);
 
-                try {
-                    tx.transform(new StreamSource(new BufferedInputStream(in), operation.inputIdentifier),
-                        tx.newSerializer(new BufferedOutputStream(out)));
-                    return Either.right(null);
-                } catch (SaxonApiException e) {
-                    return Either.left("Failed to execute transform: " + logger.getLoggedMessages());
-                }
+                return getSource(operation, in).flatMap(source -> {
+                    try {
+                        tx.transform(source, tx.newSerializer(new BufferedOutputStream(out)));
+                        return Either.right(null);
+                    } catch (SaxonApiException e) {
+                        return Either.left("Failed to execute transform: " + logger.getLoggedMessages());
+                    }
+                });
             });
         }, this.xsltEvaluateExecutor);
 
@@ -142,6 +148,30 @@ public class XSLTNail implements AutoCloseable {
             if(cause instanceof XSLTNailException)
                 throw (XSLTNailException)cause;
             throw new InternalXSLTNailException("Failed to execute transform: " + e, cause);
+        }
+    }
+
+    private static Either<String, Source> getSource(@Nonnull XSLTTransformOperation operation, @Nonnull InputStream stdin) {
+        if(!operation.xmlPath.isDefined() && operation.inputIdentifier.isDefined()) {
+            // No input is specified, so the source just references the system identifier
+            return Either.right(new StreamSource(operation.inputIdentifier.get()));
+        }
+
+        FileSystem fs = operation.xmlPath.map(p -> p.getFileSystem()).getOrElse(operation.xsltPath.getFileSystem());
+        Path stdinPath = fs.getPath("-");
+        Path xml = operation.xmlPath.getOrElse(stdinPath);
+        if(stdinPath.equals(xml)) {
+            return Either.right(new StreamSource(stdin, operation.inputIdentifier.getOrElse((String)null)));
+        }
+        // Use the contents of the file on disk; the system ID is the file:// URI of the path unless overridden by
+        // specifying a system identifier.
+        try {
+            return Either.right(new StreamSource(Files.newBufferedReader(xml),
+                operation.inputIdentifier.getOrElse(() -> xml.toUri().toString())));
+        }
+        catch (IOException e) {
+            return Either.left(String.format(
+                "Unable to open <xml-file> \"%s\" - %s", xml.toString(), e.getMessage()));
         }
     }
 

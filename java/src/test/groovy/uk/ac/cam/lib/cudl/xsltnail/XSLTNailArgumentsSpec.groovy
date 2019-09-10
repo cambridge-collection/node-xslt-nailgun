@@ -6,62 +6,13 @@ import io.vavr.collection.List
 import io.vavr.collection.Map
 import io.vavr.control.Either
 import io.vavr.control.Option
-import spock.lang.Specification;
+import spock.lang.Specification
 import spock.lang.Unroll
 
+import static io.vavr.API.Map
 import static uk.ac.cam.lib.cudl.xsltnail.XSLTNailArguments.Parsers.*
 
 class XSLTNailArgumentsSpec extends Specification {
-    @Unroll
-    def "parse() parses valid argument list #args"(String[] args, Map<String, String> expected) {
-        when:
-        def result = XSLTNailArguments.parse(args)
-
-        then:
-        result.isRight()
-        result.get().toJavaMap() == expected
-
-        where:
-        [args, expected] << [
-            // Help cases
-            ["--help", ["transform": false, "<xslt-file>": null, "<xml-base-uri>": null, "--help": true, "--version": false]],
-            ["-h", ["transform": false, "<xslt-file>": null, "<xml-base-uri>": null, "--help": true, "--version": false]],
-            ["--help transform /foo /bar", ["transform": false, "<xslt-file>": null, "<xml-base-uri>": null, "--help": true, "--version": false]],
-            ["-h transform /foo /bar", ["transform": false, "<xslt-file>": null, "<xml-base-uri>": null, "--help": true, "--version": false]],
-
-            // Version cases
-            ["--version", ["transform": false, "<xslt-file>": null, "<xml-base-uri>": null, "--help": false, "--version": true]],
-            ["--version transform /foo /bar", ["transform": false, "<xslt-file>": null, "<xml-base-uri>": null, "--help": false, "--version": true]],
-
-            // Normal cases
-            ["transform /foo /bar", ["transform": true, "<xslt-file>": "/foo", "<xml-base-uri>": "/bar", "--help": false, "--version": false]],
-            ["-- transform /foo /bar", ["transform": true, "<xslt-file>": "/foo", "<xml-base-uri>": "/bar", "--help": false, "--version": false]],
-            ["-- transform --help --version", ["transform": true, "<xslt-file>": "--help", "<xml-base-uri>": "--version", "--help": false, "--version": false]],
-        ].collect {row ->
-            def (a, e) = row
-            [a.split(), e]
-        }
-    }
-
-    @Unroll
-    def "parse() rejects incomplete argument list #args"(String[] args) {
-        when:
-        def result = XSLTNailArguments.parse(args)
-
-        then:
-        result.isLeft()
-        result.getLeft() == Constants.USAGE_TRANSFORM
-
-        where:
-        args << [
-            "",
-            "nottransform /foo /bar",
-            "transform",
-            "transform /foo",
-            "transform /foo /bar /baz",
-        ].collect { it.split() }
-    }
-
     @Unroll
     def "constant() matches constant value"(context, args, expected) {
         given:
@@ -309,10 +260,19 @@ class XSLTNailArgumentsSpec extends Specification {
         ]
     }
 
+    private static final Map<String, Object> PARSE_DEFAULTS = Map(
+        "--", false,
+        "--help", false,
+        "--version", false,
+        "--system-identifier", null,
+        "transform", false,
+        "<xslt-file>", null,
+        "<xml-file>", null)
+
     @Unroll
-    def "parse()"(args, expected) {
+    def "parse(#args)"(args, expected) {
         when:
-        def result = XSLTNailArguments._parse(args)
+        def result = XSLTNailArguments.parse(args)
 
         then:
         result == expected
@@ -329,12 +289,49 @@ class XSLTNailArgumentsSpec extends Specification {
             [["transform", "--system-identifier=abc", "foo", "bar"],
              ["--": false, "--help": false, "--version": false, "transform": true,
               "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar"]],
+            [["transform", "foo", "bar", "--system-identifier=abc"],
+             ["--": false, "--help": false, "--version": false, "transform": true,
+              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar"]],
+            [["transform", "foo", "--system-identifier=abc", "bar"],
+             ["--": false, "--help": false, "--version": false, "transform": true,
+              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar"]],
+
+            // Argument separator (--) prevents subsequent values being interpreted as options
             [["transform", "--system-identifier=abc", "--", "--foo", "--bar"],
              ["--": true, "--help": false, "--version": false, "transform": true,
               "--system-identifier": "abc", "<xslt-file>": "--foo", "<xml-file>": "--bar"]],
-        ].collect { [List.ofAll(it[0]),
-                     it[1] instanceof java.util.Map ?
-                         Either.right(HashMap.ofAll(it[1])) :
-                         Either.left(it[1] == null ? Option.none() : Option.some(it[1]))] }
+            [["transform", "--", "./foo.xsl", "--system-identifier=abc"],
+             ["--": true, "--help": false, "--version": false, "transform": true,
+              "--system-identifier": null, "<xslt-file>": "./foo.xsl", "<xml-file>": "--system-identifier=abc"]],
+
+            [["--version"], PARSE_DEFAULTS.put("--version", true)],
+            [["--foo", "--version"], null],
+            [["--version", "--foo"], null],
+
+            [[], null],
+            [["transform"], null],
+            [["nottransform", "--foo"], null],
+
+            [["--help"], PARSE_DEFAULTS.put("--help", true)],
+            [["--foo", "--help", "--bar"], PARSE_DEFAULTS.put("--help", true)],
+            [["-h"], PARSE_DEFAULTS.put("--help", true)],
+            [["--foo", "-h", "--bar"], PARSE_DEFAULTS.put("--help", true)],
+            // help with otherwise valid usage
+            [["transform", "./foo", "--help"],
+             PARSE_DEFAULTS.put("transform", true).put("<xslt-file>", "./foo").put("--help", true)],
+
+
+        ].collect {
+            Object _expected = it[1]
+            def actualExpectation
+            if(_expected instanceof java.util.Map)
+                actualExpectation = Either.right(HashMap.ofAll(_expected))
+            else if(_expected instanceof Map)
+                actualExpectation = Either.right(_expected)
+            else
+                actualExpectation = Either.left(_expected == null ? Option.none() : Option.some(_expected))
+
+            [List.ofAll(it[0]), actualExpectation]
+        }
     }
 }

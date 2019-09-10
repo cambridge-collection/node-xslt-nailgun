@@ -3,7 +3,6 @@ package uk.ac.cam.lib.cudl.xsltnail
 import org.xmlunit.builder.Input
 import spock.lang.Specification
 
-import javax.annotation.processing.Processor
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -35,7 +34,7 @@ class XSLTNailIntegration extends Specification {
         port = getUnusedPort()
     }
 
-    def "server can be start, run a transform and stop cleanly"() {
+    def "server can start, run a transform and stop cleanly"() {
         given:
         CountDownLatch startedSignal = new CountDownLatch(1)
 
@@ -57,16 +56,19 @@ class XSLTNailIntegration extends Specification {
         when:
         def xslFile = getResourceAsPath("a.xsl")
         Process txProc = [
-            "python3", clientPath, "--nailgun-server", "localhost", "--nailgun-port", "${port}",
-            "xslt", "transform", xslFile, "file:///tmp/foo.xml"].execute()
-        def out = new ByteArrayOutputStream()
-        txProc.consumeProcessOutputStream(out)
+            "python3", clientPath, "--nailgun-server", "localhost", "--nailgun-port", "${port}", "--",
+            "xslt", "transform", "--system-identifier", "file:///tmp/foo.xml", "--", xslFile, "-"].execute()
+        def stdout = new ByteArrayOutputStream()
+        def stderr = new ByteArrayOutputStream()
+        txProc.consumeProcessOutputStream(stdout)
+        txProc.consumeProcessErrorStream(stderr)
         txProc.getOutputStream().withWriter("UTF-8") { it.write("<a/>") }
         txProc.waitFor(5, TimeUnit.SECONDS)
 
         then:
-        txProc.exitValue() == 0
-        expect Input.fromByteArray(out.toByteArray()), isSimilarTo(Input.from("<result><a/></result>"))
+        assert stderr.toString("UTF-8") == ""
+        assert txProc.exitValue() == 0
+        expect Input.fromByteArray(stdout.toByteArray()), isSimilarTo(Input.from("<result><a/></result>"))
 
         when:
         Process stopProc = [
@@ -79,6 +81,11 @@ class XSLTNailIntegration extends Specification {
         then:
         stopProc.exitValue() == 0
         serverProc.exitValue() == 0
+
+        cleanup:
+        serverProc?.destroyForcibly()
+        txProc?.destroyForcibly()
+        stopProc?.destroyForcibly()
     }
 
 }

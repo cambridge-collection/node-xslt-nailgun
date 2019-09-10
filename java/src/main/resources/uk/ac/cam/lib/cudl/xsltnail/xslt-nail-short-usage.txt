@@ -1,0 +1,5 @@
+Usage:
+    xslt transform [options] [--] <xslt-file> <xml-file>
+    xslt transform [options] --system-identifier=<uri> [--] <xslt-file>
+    xslt (--help|-h)
+    xslt --version

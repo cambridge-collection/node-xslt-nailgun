@@ -2,10 +2,17 @@ package uk.ac.cam.lib.cudl.xsltnail
 
 import com.facebook.nailgun.NGContext
 import com.facebook.nailgun.NGServer
+import io.vavr.control.Option
 import net.sf.saxon.s9api.Processor
 import org.xmlunit.builder.Input
 import spock.lang.Specification
 import spock.lang.Unroll
+
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Path
+
+import static io.vavr.API.Option
 
 import java.nio.charset.StandardCharsets
 import java.time.Duration
@@ -17,6 +24,10 @@ import static org.xmlunit.matchers.CompareMatcher.isSimilarTo
 import static spock.util.matcher.HamcrestSupport.expect
 
 class XSLTNailSpec extends Specification {
+    static def path(String segment, String... segments) {
+        return FileSystems.getDefault().getPath(segment, segments)
+    }
+
     static def getResourceAsPath(String path) {
         return new File(XSLTNailSpec.class.getResource(path).toURI()).toPath()
     }
@@ -25,21 +36,94 @@ class XSLTNailSpec extends Specification {
         return new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8))
     }
 
-    def "transform() executes stylesheet with input"() {
+    @Unroll
+    def "transform() executes stylesheet with input from stdin when #desc"(desc, xmlPath, systemIdentifier) {
         given:
         def xsltPath = getResourceAsPath("a.xsl")
-        def inputPath = "file:///tmp/foo.xml"
         def input = "<a/>"
-        def op = new XSLTTransformOperation(xsltPath, inputPath)
+        def op = new XSLTTransformOperation(xsltPath, xmlPath, systemIdentifier)
         def out = new ByteArrayOutputStream()
 
         when:
-
         def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
 
         then:
         assert result.isRight()
         expect Input.fromByteArray(out.toByteArray()), isSimilarTo(Input.from("<result><a/></result>"))
+
+        where:
+        [desc, xmlPath, systemIdentifier] << [
+            ["<xml-file> is - without a system identifier", Option(path("-")), Option(null)],
+            ["<xml-file> is - with a system identifier", Option(path("-")), Option("file:///tmp/foo.xml")],
+            ["<xml-file> and system identifier are not provided", Option(null), Option(null)]
+        ]
+    }
+
+    @Unroll
+    def "transform() executes stylesheet with input from file #tmpFile when <xml-file> is #xmlPath and --system-identifier is #systemIdentifier"(
+            Path tmpFile, xmlPath, systemIdentifier) {
+        setup:
+        def input = "<a/>"
+        def xsltPath = getResourceAsPath("a.xsl")
+        def op = new XSLTTransformOperation(xsltPath, xmlPath, systemIdentifier)
+        def out = new ByteArrayOutputStream()
+
+        tmpFile.write(input)
+
+        when:
+        def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
+
+        then:
+        assert result.isRight()
+        expect Input.fromByteArray(out.toByteArray()), isSimilarTo(Input.from("<result><a/></result>"))
+
+        cleanup:
+        Files.delete(tmpFile)
+
+        where:
+        [tmpFile, xmlPath, systemIdentifier] << {
+            Path file ->
+            [
+                [file, Option(file), Option(null)],
+                [file, Option(null), Option(file.toUri().toString())],
+                [file, Option(file), Option(file.toUri().toString())]
+            ]
+        }.call(Files.createTempFile("input-", ".xml"))
+    }
+
+    @Unroll
+    def "transform() with xmlPath=#xmlPath, systemIdentifier=#systemIdentifier uses base URI #baseURI"(
+        Option<Path> xmlPath, systemIdentifier, baseURI
+    ) {
+        given:
+        def xsltPath = getResourceAsPath("base-uri.xsl")
+        def input = xmlPath.exists { it.toString() == "-" } ? "<a/>" : ""
+        def op = new XSLTTransformOperation(xsltPath, xmlPath, systemIdentifier)
+        def out = new ByteArrayOutputStream()
+
+        when:
+        def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
+
+        then:
+        assert result.isRight()
+        expect Input.fromByteArray(out.toByteArray()),
+            isSimilarTo(Input.from("<result base-uri-of-input=\"${baseURI}\"><a/></result>" as String))
+
+        where:
+        [xmlPath, systemIdentifier, baseURI] << [
+            // data on stdin - base URI available by default
+            [Option(path("-")), Option(null), ""],
+            // base is specified for data on stdin
+            [Option(path("-")), Option("foo:///bar"), "foo:///bar"],
+            // base is URI of path
+            [Option(getResourceAsPath("a.xml")), Option(null),
+             getResourceAsPath("a.xml").toUri().toString()],
+            // base is system ID, which is also used to locate the input
+            [Option(null), Option(getResourceAsPath("a.xml").toUri().toString()),
+             getResourceAsPath("a.xml").toUri().toString()],
+            // base is overridden
+            [Option(getResourceAsPath("a.xml")), Option("foo:///bar"), "foo:///bar"],
+        ]
     }
 
     def "transform() returns error message on invalid input data"() {
@@ -47,8 +131,7 @@ class XSLTNailSpec extends Specification {
         def input = "<a>..."  // invalid XML
 
         def xsltPath = getResourceAsPath("a.xsl")
-        def inputPath = "file:///tmp/foo.xml"
-        def op = new XSLTTransformOperation(xsltPath, inputPath)
+        def op = new XSLTTransformOperation(xsltPath, Option(null), Option(null))
         def out = new ByteArrayOutputStream()
 
         when:
@@ -61,9 +144,8 @@ class XSLTNailSpec extends Specification {
 
     def "transform() returns error message on syntactically invalid XSLT"() {
         given:
-        def inputPath = "file:///tmp/foo.xml"
         def input = "<a/>"
-        def op = new XSLTTransformOperation(getResourceAsPath("invalid-syntax.xsl"), inputPath)
+        def op = new XSLTTransformOperation(getResourceAsPath("invalid-syntax.xsl"), Option(null), Option(null))
         def out = new ByteArrayOutputStream()
 
         when:
@@ -76,9 +158,8 @@ class XSLTNailSpec extends Specification {
 
     def "transform() returns error message when execution of XSLT raises an error"() {
         given:
-        def inputPath = "file:///tmp/foo.xml"
         def input = "<a/>"
-        def op = new XSLTTransformOperation(getResourceAsPath("invalid-logic.xsl"), inputPath)
+        def op = new XSLTTransformOperation(getResourceAsPath("invalid-logic.xsl"), Option(null), Option(null))
         def out = new ByteArrayOutputStream()
 
         when:
@@ -113,7 +194,7 @@ class XSLTNailSpec extends Specification {
         xsltFile.write(String.format(XSLT_TEMPLATE, "<initial-version/>"))
 
         def input = "<a/>"
-        def op = new XSLTTransformOperation(xsltFile.toPath(), "file:///tmp/foo.xml")
+        def op = new XSLTTransformOperation(xsltFile.toPath(), Option(null), Option(null))
         def out = new ByteArrayOutputStream()
         def nail = new XSLTNail(loader, Duration.of(1, ChronoUnit.NANOS))
 
@@ -159,7 +240,7 @@ class XSLTNailSpec extends Specification {
         xsltFile.write(String.format(XSLT_TEMPLATE, "<initial-version/>"))
 
         def input = "<a/>"
-        def op = new XSLTTransformOperation(xsltFile.toPath(), "file:///tmp/foo.xml")
+        def op = new XSLTTransformOperation(xsltFile.toPath(), Option(null), Option(null))
         def out = new ByteArrayOutputStream()
         def nail = new XSLTNail(loader, Duration.of(1, ChronoUnit.NANOS))
 
@@ -214,7 +295,7 @@ class XSLTNailSpec extends Specification {
 
         then:
         1 * context.getNGServer() >> server
-        1 * context.getArgs() >> (["transform", xsltPath, "file:///tmp/foo.xml"] as String[])
+        1 * context.getArgs() >> (["transform", "--system-identifier", "file:///tmp/foo.xml", xsltPath, "-"] as String[])
         _ * context.exit(_) >> { int s -> status = s }
         0 * context._
         _ * server.hashCode()
