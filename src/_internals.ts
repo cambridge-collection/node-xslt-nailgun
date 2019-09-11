@@ -93,7 +93,7 @@ export class IPServerAddress {
     }
 }
 
-interface JVMProcessOptions extends Omit<Required<CreateOptions>, 'unique'>, ServerAddress {
+export interface JVMProcessOptions extends Omit<Required<CreateOptions>, 'unique'>, ServerAddress {
     classpath: string;
     startupTimeout?: number;
 }

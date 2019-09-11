@@ -1,7 +1,14 @@
 import glob from 'glob';
 import {tmpName} from 'tmp-promise';
 import {using} from '../src';
-import {AddressType, getClasspath, IPServerAddress, JVMProcess, LocalServerAddress} from '../src/_internals';
+import {
+    AddressType,
+    getClasspath,
+    IPServerAddress,
+    JVMProcess,
+    JVMProcessOptions,
+    LocalServerAddress,
+} from '../src/_internals';
 
 beforeAll(() => {
     // Fail if the .jar is not built
@@ -11,14 +18,14 @@ beforeAll(() => {
 // https://github.com/facebook/jest/issues/8906
 test('dummy test to work around jest issue #8906', () => undefined);
 
-test.each([
+test.each<[Partial<JVMProcessOptions>, string]>([
     [{jvmExecutable: '/does/not/exist'}, 'xslt-nailgun server process failed to start: stderr:'],
     [{classpath: '/does/not/exist'},
      'xslt-nailgun server process failed to start: process unexpectedly terminated with { code: 1 }'],
     [{listenAddress: '/dev/null'},
      'xslt-nailgun server process failed to start: process unexpectedly terminated with { code: 1 }'],
 ])('[%#] JVMProcess serverStarted Promise rejects when process fails to start',
-    async (options: any, reason: any) => {
+    async (options, reason) => {
     jest.setTimeout(1000 * 60 * 60);
     expect.assertions(1);
 
