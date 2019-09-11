@@ -16,15 +16,11 @@ import Timeout = NodeJS.Timeout;
 
 export class XSLTNailgunError extends TraceError {}
 export class UserError extends XSLTNailgunError {
-    public readonly xml: string | Buffer;
-    public readonly xsltPath: string;
-    public readonly xmlBaseURI: string;
+    public readonly executeOptions: ExecuteOptions;
 
-    constructor(message: string, xml: string | Buffer, xmlBaseURI: string, xsltPath: string) {
+    constructor(message: string, executeOptions: ExecuteOptions) {
         super(message);
-        this.xml = xml;
-        this.xmlBaseURI = xmlBaseURI;
-        this.xsltPath = xsltPath;
+        this.executeOptions = {...executeOptions};
     }
 }
 export class InternalError extends XSLTNailgunError {}
@@ -372,6 +368,36 @@ const EXIT_STATUS_OK = 0;
 const EXIT_STATUS_INTERNAL_ERROR = 1;
 const EXIT_STATUS_USER_ERROR = 2;
 
+interface BaseExecuteOptions {
+    /** The filesystem path to the XSLT file to execute. */
+    xsltPath: string;
+
+    /**
+     * Defines the default base URI of the input document (it can be overridden by the contents of the document itself).
+     */
+    systemIdentifier?: string;
+}
+
+interface XMLViaValue {
+    /** The data to be used as the input to the transformation. */
+    xml: string | Buffer;
+    xmlPath?: undefined;
+}
+
+interface XMLViaPath {
+    /** The path to the file to be used as the input to the transformation. */
+    xmlPath: string;
+    xml?: undefined;
+}
+
+interface XMLViaSystemIdentifier {
+    systemIdentifier: string;
+    xml?: undefined;
+    xmlPath?: undefined;
+}
+
+export type ExecuteOptions = BaseExecuteOptions & (XMLViaValue | XMLViaPath | XMLViaSystemIdentifier);
+
 export class XSLTExecutor implements Closable {
     public static getInstance(options?: CreateOptions): XSLTExecutor {
         return this._getInstance(populateDefaults(options || {}));
@@ -379,6 +405,41 @@ export class XSLTExecutor implements Closable {
 
     private static _getInstance(options: StrictCreateOptions): XSLTExecutor {
         return new XSLTExecutor(getServerProcessReference(options));
+    }
+
+    private static getNailInputs(options: ExecuteOptions) {
+        let stdin;
+        let xmlPath: string[];
+        const systemIdentifier =
+            options.systemIdentifier === undefined ? [] : ['--system-identifier', options.systemIdentifier];
+        if(options.xmlPath === undefined && options.xml === undefined &&  options.systemIdentifier !== undefined) {
+            stdin = '';
+            xmlPath = [];
+        }
+        else if(options.xmlPath !== undefined) {
+            assert(options.xml === undefined);
+            stdin = '';
+            xmlPath = [options.xmlPath];
+        }
+        else if(options.xml !== undefined) {
+            assert(options.xmlPath === undefined);
+            stdin = options.xml;
+            xmlPath = ['-'];
+        }
+        else {
+            const anyOpts = options as any;
+            // TypeScript will prevent this, but javascript won't.
+            if(anyOpts.xml !== undefined && anyOpts.xmlPath !== undefined) {
+                throw new Error('Options xml and xmlPath cannot be specified together');
+            }
+            throw new Error(`\
+No input specified in options - at least one of xml, xmlPath, systemIdentifier must be specified`);
+        }
+
+        return {
+            args: ['transform'].concat(systemIdentifier).concat(['--', options.xsltPath]).concat(xmlPath),
+            stdin,
+        };
     }
 
     private readonly serverProcessRef: AutoCloserReference<JVMProcess>;
@@ -398,17 +459,19 @@ export class XSLTExecutor implements Closable {
         await this.serverProcessRef.close();
     }
 
-    public execute(xmlBaseURI: string, xml: string | Buffer, xsltPath: string): Promise<Buffer> {
-        const pendingResult = this.doExecute(xmlBaseURI, xml, xsltPath);
+    public execute(options: ExecuteOptions): Promise<Buffer> {
+        const pendingResult = this.doExecute(options);
         this.activeExecutions.add(pendingResult);
         return promiseFinally(pendingResult, () => {
             this.activeExecutions.delete(pendingResult);
         });
     }
 
-    private async doExecute(xmlBaseURI: string, xml: string | Buffer, xsltPath: string): Promise<Buffer> {
+    private async doExecute(options: ExecuteOptions): Promise<Buffer> {
         if(this.closeStarted)
             throw new Error('execute() called following close()');
+
+        const {args, stdin} = XSLTExecutor.getNailInputs(options);
 
         const process = (await (await this.serverProcessRef).resource);
         const address = await process.serverStarted;
@@ -433,7 +496,7 @@ Error communicating with xslt-nailgun server. Nailgun server stderr${serverError
 
         await abortOnError(connected, error);
 
-        const proc = conn.spawn('xslt', ['transform', xsltPath, xmlBaseURI], {env: {}});
+        const proc = conn.spawn('xslt', args, {env: {}});
         const exitStatus = new Promise<number>((resolve, reject) => {
             proc.on('exit', (signal: number | null) => {
                 if(signal === null) {
@@ -449,7 +512,7 @@ Error communicating with xslt-nailgun server. Nailgun server stderr${serverError
         const stderrData = new BufferList();
         proc.stdout.pipe(stdoutData);
         proc.stderr.pipe(stderrData);
-        proc.stdin.end(xml);
+        proc.stdin.end(stdin);
 
         const [status] = await abortOnError(Promise.all([exitStatus, connectionClosed]), error);
 
@@ -458,7 +521,7 @@ Error communicating with xslt-nailgun server. Nailgun server stderr${serverError
         }
         else if(status === EXIT_STATUS_USER_ERROR) {
             throw new UserError(`\
-XSLT evaluation produced an error: ${stderrData.toString()}`, xml, xmlBaseURI, xsltPath);
+XSLT evaluation produced an error: ${stderrData.toString()}`, options);
         }
         else {
             if(status === EXIT_STATUS_INTERNAL_ERROR) {
@@ -497,6 +560,6 @@ function abortOnError<T>(promise: Promise<T>, errorProducer: Promise<any>): Prom
     ]) as Promise<T>;
 }
 
-export async function execute(xmlBaseURI: string, xml: string | Buffer, xsltPath: string) {
-    return using(XSLTExecutor.getInstance(), (executor) => executor.execute(xmlBaseURI, xml, xsltPath));
+export async function execute(options: ExecuteOptions) {
+    return using(XSLTExecutor.getInstance(), (executor) => executor.execute(options));
 }

@@ -1,23 +1,51 @@
 import 'jest-xml-matcher';
 import path from 'path';
+import {URL} from 'url';
 import {InternalError, UserError, using, XSLTExecutor} from '../src';
-import {execute, IPServerAddress, JVMProcess, timeout} from '../src/_internals';
+import {execute, ExecuteOptions, IPServerAddress, JVMProcess, timeout} from '../src/_internals';
 
 const testResourcesDir = path.resolve(__dirname, '../java/src/test/resources/uk/ac/cam/lib/cudl/xsltnail');
+const aXslPath = path.resolve(testResourcesDir, 'a.xsl');
+const baseURIXslPath = path.resolve(testResourcesDir, 'base-uri.xsl');
+const aXmlPath = path.resolve(testResourcesDir, 'a.xml');
+const aXmlURI = new URL(aXmlPath, 'file://').toString();
 
-test('execute() transforms XML with XSLT', async () => {
+test.each<[string, ExecuteOptions]>([
+    ['from string value', {xml: '<a/>', xsltPath: aXslPath}],
+    ['from Buffer value', {xml: Buffer.from('<a/>'), xsltPath: aXslPath}],
+    ['from file via path', {xmlPath: aXmlPath, xsltPath: aXslPath}],
+    ['from file via system identifier', {systemIdentifier: aXmlURI, xsltPath: aXslPath}],
+])
+('execute() transforms XML %s with XSLT', async (desc: string, options: ExecuteOptions) => {
     const result = await using(XSLTExecutor.getInstance(), async (executor) => {
-        return executor.execute('/tmp/foo.xml', '<foo>hi</foo>', path.resolve(testResourcesDir, 'a.xsl'));
+        return executor.execute(options);
     });
 
     await expect(result.toString()).toEqualXML(`\
 <?xml version="1.0" encoding="UTF-8"?>
-<result><foo>hi</foo></result>`);
+<result><a/></result>`);
+});
+
+test.each<[ExecuteOptions, string]>([
+    [{xml: '<a/>', xsltPath: baseURIXslPath}, ''],
+    [{xml: '<a/>', systemIdentifier: 'foo:///bar', xsltPath: baseURIXslPath}, 'foo:///bar'],
+    [{xmlPath: aXmlPath, xsltPath: baseURIXslPath}, aXmlURI],
+    [{xmlPath: aXmlPath, systemIdentifier: 'foo:///bar', xsltPath: baseURIXslPath}, 'foo:///bar'],
+    [{systemIdentifier: aXmlURI, xsltPath: baseURIXslPath}, aXmlURI],
+
+])('execute() with options: %j uses base URI: %s', async (options, expectedBase) => {
+    const result = await using(XSLTExecutor.getInstance(), async (executor) => {
+        return executor.execute(options);
+    });
+
+    await expect(result.toString()).toEqualXML(`\
+<?xml version="1.0" encoding="UTF-8"?>
+<result base-uri-of-input="${expectedBase}"><a/></result>`);
 });
 
 test('execute() transforms XML with XSLT (without async)', () => {
     const result = using(XSLTExecutor.getInstance(), (executor) => {
-        return executor.execute('/tmp/foo.xml', '<foo>hi</foo>', path.resolve(testResourcesDir, 'a.xsl'))
+        return executor.execute({xml: '<foo>hi</foo>', xsltPath: aXslPath})
             .then(buffer => buffer.toString());
     });
 
@@ -29,7 +57,7 @@ test('execute() transforms XML with XSLT (without async)', () => {
 test('execute() rejects with UserError on invalid input data', async () => {
     const result = using(XSLTExecutor.getInstance(), async (executor) => {
         const invalidXml = '<a>...';
-        return  executor.execute('/tmp/foo.xml', invalidXml, path.resolve(testResourcesDir, 'a.xsl'));
+        return  executor.execute({xml: invalidXml, xsltPath: aXslPath});
     });
 
     await expect(result).rejects.toThrow(UserError);
@@ -39,7 +67,7 @@ test('execute() rejects with UserError on invalid input data', async () => {
 
 test('execute() rejects with UserError on syntactically invalid XSLT', async () => {
     const result = using(XSLTExecutor.getInstance(), async (executor) => {
-        return  executor.execute('/tmp/foo.xml', '<a/>', path.resolve(testResourcesDir, 'invalid-syntax.xsl'));
+        return  executor.execute({xml: '<a/>', xsltPath: path.resolve(testResourcesDir, 'invalid-syntax.xsl')});
     });
 
     await expect(result).rejects.toThrow(UserError);
@@ -49,7 +77,7 @@ test('execute() rejects with UserError on syntactically invalid XSLT', async () 
 
 test('execute() rejects with UserError when execution of XSLT raises an error', async () => {
     const result = using(XSLTExecutor.getInstance(), async (executor) => {
-        return  executor.execute('/tmp/foo.xml', '<a/>', path.resolve(testResourcesDir, 'invalid-logic.xsl'));
+        return  executor.execute({xml: '<a/>', xsltPath: path.resolve(testResourcesDir, 'invalid-logic.xsl')});
     });
 
     await expect(result).rejects.toThrow(UserError);
@@ -61,7 +89,7 @@ test('execute() rejects with UserError when execution of XSLT raises an error', 
 test('execute() cannot be invoked after executor is closed', async () => {
     const executor = XSLTExecutor.getInstance({unique: true});
     await executor.close();
-    const result = executor.execute('/tmp/foo.xml', '<a/>', path.resolve(testResourcesDir, 'a.xsl'));
+    const result = executor.execute({xml: '<a/>', xsltPath: aXslPath});
 
     await expect(result).rejects.toThrow(new Error('execute() called following close()'));
 });
@@ -74,7 +102,7 @@ test('execute() rejects with InternalError when unable to connect to the nailgun
         (serverProcess as any).serverStarted =
             serverProcess.serverStarted.then(() => new IPServerAddress('127.0.0.1', 1));
 
-        return executor.execute('/tmp/foo.xml', '<a/>', path.resolve(testResourcesDir, 'a.xsl'));
+        return executor.execute({xml: '<a/>', xsltPath: aXslPath});
     });
 
     await expect(result).rejects.toThrow(InternalError);
@@ -85,7 +113,7 @@ test('execute() rejects with InternalError when nailgun server closes before exe
     const result = using(XSLTExecutor.getInstance({unique: true}), async executor => {
         const serverProcess: JVMProcess = await (executor as any).serverProcessRef.resource;
         await serverProcess.serverStarted;
-        const _result = executor.execute('/tmp/foo.xml', '<a/>', path.resolve(testResourcesDir, 'infinite-loop.xsl'));
+        const _result = executor.execute({xml: '<a/>', xsltPath: path.resolve(testResourcesDir, 'infinite-loop.xsl')});
         _result.catch(() => undefined); // prevent an UnhandledPromiseRejectionWarning - we handle errors later...
 
         await timeout(100);
@@ -107,7 +135,7 @@ test('concurrent execute()', async () => {
     const count = 100;
     const executions = Array(count).fill(null).map(async (val, i) => {
         const buffer = await execute(
-            'example:foo.xml', `<foo n="${i}">hi</foo>`, path.resolve(testResourcesDir, 'a.xsl'));
+            {xml: `<foo n="${i}">hi</foo>`, xsltPath: aXslPath});
         return buffer.toString();
     });
     const results = await Promise.all(executions);

@@ -2,7 +2,7 @@ let util = require('util');
 let path = require('path');
 let execute = util.callbackify(require('@lib.cam/xslt-nailgun').execute);
 
-execute('example:foo.xml', '<foo>hi</foo>', path.resolve(__dirname, 'wrap.xsl'), (err, buffer) => {
+execute({xml: '<foo>hi</foo>', xsltPath: path.resolve(__dirname, 'wrap.xsl')}, (err, buffer) => {
     if(err) {
         console.error('Failed to execute transform: ' + e);
         process.exit(1);

@@ -22,7 +22,10 @@ one has caused the XSLT to be loaded.
     await using(XSLTExecutor.getInstance(), async (executor) => {
         for(let i = 0; i < 10; ++i) {
             let start = performance.now();
-            let buffer = await executor.execute('example:foo.xml', `<foo n="${i}">hi</foo>`, path.resolve(__dirname, 'wrap.xsl'));
+            let buffer = await executor.execute({
+                xml: `<foo n="${i}">hi</foo>`,
+                xsltPath: path.resolve(__dirname, 'wrap.xsl')
+            });
             console.log(`${Math.round(performance.now() - start)} ms: `, buffer.toString());
         }
     });
@@ -39,7 +42,10 @@ taken is slightly less than running in series.
     overallStart = performance.now();
     let executions = Array(10).fill(null).map(async (val, i) => {
         let start = performance.now();
-        let buffer = await execute('example:foo.xml', `<foo n="${i}">hi</foo>`, path.resolve(__dirname, 'wrap.xsl'));
+        let buffer = await execute({
+            xml: `<foo n="${i}">hi</foo>`,
+            xsltPath: path.resolve(__dirname, 'wrap.xsl')
+        });
         return {buffer, elapsed: performance.now() - start};
     });
     (await Promise.all(executions)).forEach(({buffer, elapsed}) => {
@@ -64,7 +70,10 @@ above.
     overallStart = performance.now();
     for(let i = 0; i < 5; ++i) {
         let start = performance.now();
-        let buffer = await execute('example:foo.xml', `<foo n="${i}">hi</foo>`, path.resolve(__dirname, 'wrap.xsl'));
+        let buffer = await execute({
+            xml: `<foo n="${i}">hi</foo>`,
+            xsltPath: path.resolve(__dirname, 'wrap.xsl')
+        });
         console.log(`${Math.round(performance.now() - start)} ms: `, buffer.toString());
     }
     console.log(`Total time: ${Math.round(performance.now() - overallStart)} ms`);
