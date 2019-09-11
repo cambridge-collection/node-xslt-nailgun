@@ -3,11 +3,13 @@ import BufferList from 'bl';
 import {ChildProcess, spawn} from 'child_process';
 import DevNull from 'dev-null';
 import jsonStableStringify from 'json-stable-stringify';
+import {type} from 'os';
 import promiseFinally from 'p-finally';
 import path from 'path';
 import readline from 'readline';
 import RingBuffer from 'ringbufferjs';
 import {Readable} from 'stream';
+import {AsyncParallelHook, SyncHook} from 'tapable';
 import TraceError from 'trace-error';
 import * as util from 'util';
 import {Closable, using} from './_resources';
@@ -114,56 +116,123 @@ interface AutoCloser<T extends Closable> {
     ref(): AutoCloserReference<T>;
 }
 
-export class ReferenceCountAutoCloser<T extends Closable> implements AutoCloser<T> {
-    public static createAndReference<T extends Closable>(
-        resource: T | Promise<T>,
-    ): {closer: ReferenceCountAutoCloser<T>, ref: AutoCloserReference<T>} {
-        const closer = new ReferenceCountAutoCloser(Promise.resolve(resource));
-        return {closer, ref: closer.ref()};
+class KeepAliveStrategyHooks<T extends Closable> {
+    public readonly onDead = new AsyncParallelHook();
+}
+
+interface KeepAliveStrategy<T extends Closable> {
+    readonly hooks: KeepAliveStrategyHooks<T>;
+    isAlive(): boolean;
+    accept(hooks: DefaultAutoCloserHooks<T>): void;
+}
+
+abstract class BaseKeepAliveStrategy<T extends Closable = Closable> implements KeepAliveStrategy<T>{
+    public readonly hooks = new KeepAliveStrategyHooks<T>();
+    protected _isAlive: boolean;
+    private autoCloserHooks: DefaultAutoCloserHooks<T>;
+
+    protected constructor(isAliveByDefault: boolean) {
+        this._isAlive = isAliveByDefault;
     }
 
-    private readonly resourcePromise: Promise<T>;
-    private _referenceCount: number | null;
+    public accept(hooks: DefaultAutoCloserHooks<T>): void {
+        if(this.autoCloserHooks !== undefined)
+            throw new Error('accept() called multiple times');
+        this.autoCloserHooks = hooks;
 
-    constructor(resourcePromise: Promise<T>) {
-        this._referenceCount = null;
-        this.resourcePromise = resourcePromise;
+        this.autoCloserHooks.refOpened.tap(this.constructor.name, this.onRefOpened.bind(this));
+        this.autoCloserHooks.refClosed.tapPromise(this.constructor.name, this.onRefClosed.bind(this));
     }
 
-    public get referenceCount() {
-        return this._referenceCount;
+    public isAlive(): boolean {
+        return this._isAlive;
+    }
+
+    protected abstract onRefOpened(ref: AutoCloserReference<T>): void;
+    protected abstract onRefClosed(ref: AutoCloserReference<T>): Promise<void>;
+}
+
+export class ReferenceCountKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
+    private readonly refs: Set<AutoCloserReference<Closable>> = new Set();
+
+    constructor() {
+        super(true);
+    }
+
+    protected async onRefClosed(ref: AutoCloserReference<Closable>): Promise<void> {
+        this.refs.delete(ref);
+        if(this.isAlive() && this.refs.size === 0) {
+            this._isAlive = false;
+            await this.hooks.onDead.promise();
+        }
+    }
+
+    protected onRefOpened(ref: AutoCloserReference<Closable>): void {
+        this.refs.add(ref);
+        if(!this.isAlive() && this.refs.size > 0) {
+            this._isAlive = true;
+        }
+    }
+}
+
+class DefaultAutoCloserHooks<T extends Closable> {
+    public readonly refOpened = new SyncHook<AutoCloserReference<T>>(['ref']);
+    public readonly refClosed = new AsyncParallelHook<AutoCloserReference<T>>(['ref']);
+}
+
+type NonEmptyArray<T> = {0: T} & T[];
+
+export class DefaultAutoCloser<T extends Closable> implements AutoCloser<T> {
+    private _isClosed: boolean;
+    private readonly resource: Promise<T>;
+    private readonly hooks: DefaultAutoCloserHooks<T>;
+    private readonly keepAliveStrategies: ReadonlyArray<KeepAliveStrategy<T>>;
+
+    public constructor(keepAliveStrategies: KeepAliveStrategy<T> | NonEmptyArray<KeepAliveStrategy<T>>,
+                       resource: T | Promise<T>) {
+        this._isClosed = false;
+        this.resource = Promise.resolve(resource);
+        this.hooks = new DefaultAutoCloserHooks<T>();
+        this.keepAliveStrategies = Array.isArray(keepAliveStrategies) ?
+            [...keepAliveStrategies] : [keepAliveStrategies];
+
+        if(this.keepAliveStrategies.length === 0) {
+            throw new Error('no KeepAliveStrategy instances provided');
+        }
+
+        for (const keepAlive of this.keepAliveStrategies) {
+            keepAlive.accept(this.hooks);
+            keepAlive.hooks.onDead.tapPromise(this.constructor.name, this.onKeepAliveDeath.bind(this));
+        }
     }
 
     public isClosed(): boolean {
-        return this._referenceCount === 0;
+        return this._isClosed;
     }
 
     public ref(): AutoCloserReference<T> {
-        if(this._referenceCount === 0)
-            throw new Error('useIn() called on closed CountedReference');
-        if(this._referenceCount === null)
-            this._referenceCount = 0;
-        this._referenceCount += 1;
+        if(this.isClosed()) {
+            throw new Error('ref() called on closed AutoCloser');
+        }
 
-        let isClosed = false;
-        const closer = this;
-        return {
-            resource: this.resourcePromise,
+        const autoCloser = this;
+        const ref: AutoCloserReference<T> = {
+            resource: this.resource,
             async close(): Promise<void> {
-                if(isClosed)
-                    return;
-                isClosed = true;
-                await closer.dropReference();
+                await autoCloser.hooks.refClosed.promise(ref);
             },
         };
+        this.hooks.refOpened.call(ref);
+        return ref;
     }
 
-    private async dropReference(): Promise<void> {
-        if(this._referenceCount === null || this._referenceCount < 1)
-            throw new Error('dropReference() called without an active reference');
-        this._referenceCount -= 1;
-        if(this._referenceCount === 0) {
-            await (await this.resourcePromise).close();
+    private async onKeepAliveDeath(): Promise<void> {
+        if(this._isClosed) {
+            return;
+        }
+        if(this.keepAliveStrategies.every(keepAlive => !keepAlive.isAlive())) {
+            this._isClosed = true;
+            await (await this.resource).close();
         }
     }
 }
@@ -348,16 +417,15 @@ function getServerProcessReference(options: StrictCreateOptions): AutoCloserRefe
     const optionsKey = jsonStableStringify(options);
     const procCloser = serverProcesses.get(optionsKey);
     if(options.unique || procCloser === undefined || procCloser.isClosed()) {
-        const autoCloser = ReferenceCountAutoCloser.createAndReference(JVMProcess.listeningOnRandomPort({
-            ...options,
-            classpath: getClasspath(),
-        }));
+        const autoCloser = new DefaultAutoCloser<JVMProcess>(
+            [new ReferenceCountKeepAliveStrategy()],
+            JVMProcess.listeningOnRandomPort({...options, classpath: getClasspath()}));
 
         // Don't share the server process if an unique executor is requested.
         if(!options.unique) {
-            serverProcesses.set(optionsKey, autoCloser.closer);
+            serverProcesses.set(optionsKey, autoCloser);
         }
-        return autoCloser.ref;
+        return autoCloser.ref();
     }
     else {
         return procCloser.ref();
