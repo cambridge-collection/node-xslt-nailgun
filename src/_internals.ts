@@ -216,12 +216,12 @@ export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
     private openRefCount: number = 0;
     private timer?: Timeout;
     private timeout: number;
+    private readonly beforeExitCallback: () => void;
 
     public constructor(timeout: number) {
         super(true);
         this.updateTimeout(timeout);
-
-        process.on('beforeExit', this.onBeforeExit.bind(this));
+        this.beforeExitCallback = this.onBeforeExit.bind(this);
     }
 
     public getTimeout(): number { return this.timeout; }
@@ -238,15 +238,7 @@ export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
 
         if(this.openRefCount === 0) {
             this.cancelTimeout();
-
-            if(this.timeout === 0) {
-                this.onTimeoutExpired();
-            }
-            else {
-                DEBUG.keepAliveTimeout('staying alive for %d ms', this.timeout);
-                this.timer = setTimeout(this.onTimeoutExpired.bind(this), this.timeout);
-                this.timer.unref();
-            }
+            this.startTimeout();
         }
     }
 
@@ -258,7 +250,20 @@ export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
         this._isAlive = true;
     }
 
+    private startTimeout() {
+        if(this.timeout === 0) {
+            this.onTimeoutExpired();
+        }
+        else {
+            DEBUG.keepAliveTimeout('staying alive for %d ms', this.timeout);
+            process.on('beforeExit', this.beforeExitCallback);
+            this.timer = setTimeout(this.onTimeoutExpired.bind(this), this.timeout);
+            this.timer.unref();
+        }
+    }
+
     private cancelTimeout(): boolean {
+        process.removeListener('beforeExit', this.beforeExitCallback);
         if(this.timer !== undefined) {
             clearTimeout(this.timer);
             this.timer = undefined;
