@@ -1,3 +1,4 @@
+import {ChildProcess} from 'child_process';
 import glob from 'glob';
 import {tmpName} from 'tmp-promise';
 import {using} from '../src';
@@ -77,5 +78,59 @@ test('listeningOnRandomPort() creates server on automatically-chosen port', asyn
         expect(proc.address).toEqual(new IPServerAddress('127.0.0.1', 0));
         expect(address.host).toEqual('127.0.0.1');
         expect(address.port).toBeGreaterThan(0);
+    });
+});
+
+test('child process streams are no longer open after startup', async () => {
+    await using(JVMProcess.listeningOnRandomPort({
+        jvmExecutable: 'java',
+        classpath: getClasspath(),
+        startupTimeout: 2000,
+    }), async proc => {
+        await proc.serverStarted;
+
+        const serverProcess = (proc as any).process as ChildProcess;
+        expect(serverProcess.stdin).toBe(null);
+        expect((serverProcess.stdout as any).destroyed).toBe(true);
+        expect((serverProcess.stderr as any).destroyed).toBe(true);
+    });
+});
+
+test('child process stderr stays open if debug is enabled', async () => {
+    await using(JVMProcess.listeningOnRandomPort({
+        jvmExecutable: 'java',
+        classpath: getClasspath(),
+        startupTimeout: 2000,
+        debug: true,
+    }), async proc => {
+        await proc.serverStarted;
+
+        const serverProcess = (proc as any).process as ChildProcess;
+        expect((serverProcess.stderr as any).destroyed).toBe(false);
+    });
+});
+
+test('child process is killed on process exit', async () => {
+    expect.assertions(6);
+    const processOn = jest.spyOn(process, 'on');
+
+    await using(JVMProcess.listeningOnRandomPort({
+        jvmExecutable: 'java',
+        classpath: getClasspath(),
+        startupTimeout: 2000,
+    }), async proc => {
+        const exitHandler = (proc as any).boundOnProcessExit as () => void;
+        expect(typeof exitHandler).toBe('function');
+
+        // process.on('exit' ...) is called with exitHandler
+        expect(processOn.mock.calls.length).toBe(1);
+        expect(processOn.mock.calls[0][0]).toBe('exit');
+        expect(processOn.mock.calls[0][1]).toBe(exitHandler);
+
+        // The child process is killed when exitHandler() is called
+        const serverProcess = (proc as any).process as ChildProcess;
+        expect(serverProcess.killed).toBeFalsy();
+        exitHandler();
+        expect(serverProcess.killed).toBeTruthy();
     });
 });

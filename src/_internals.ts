@@ -2,7 +2,6 @@ import assert from 'assert';
 import BufferList from 'bl';
 import {ChildProcess, spawn} from 'child_process';
 import createDebug from 'debug';
-import DevNull from 'dev-null';
 import jsonStableStringify from 'json-stable-stringify';
 import promiseFinally from 'p-finally';
 import path from 'path';
@@ -121,6 +120,13 @@ export interface JVMProcessOptions
 
     classpath: string;
     startupTimeout?: number;
+    /**
+     * Whether to enable debugging functionality. Default: false.
+     * Presently this means that stderr is monitored for errors until the process's close() method is called. Normally
+     * stderr is only monitored during startup; after that it's disconnected. This is necessary to prevent the process
+     * keeping the parent node process alive unnecessarily until keep-alive timeouts expire..
+     */
+    debug?: boolean;
 }
 
 function populateDefaults(options: CreateOptions): StrictCreateOptions {
@@ -408,19 +414,32 @@ export class JVMProcess implements Closable {
     public readonly processExit: Promise<ProcessExit>;
     public readonly serverStarted: Promise<IPServerAddress | LocalServerAddress>;
     public readonly address: IPServerAddress | LocalServerAddress;
+    public readonly debug: boolean;
 
-    private options: JVMProcessOptions;
-    private process: ChildProcess;
+    private readonly options: JVMProcessOptions;
+    private readonly process: ChildProcess;
     private readonly stderrLines: RingBuffer<string>;
+    private readonly boundOnProcessExit = this.onProcessExit.bind(this);
+    private closeCalled: boolean = false;
 
     constructor(options: JVMProcessOptions) {
         const startupTimeout = options.startupTimeout === undefined ? 2000 : options.startupTimeout;
         this.options = {...options};
+        this.debug = !!options.debug;
         this.address = parseServerAddress(options);
         this.stderrLines = new RingBuffer<string>(500);
         const args = ['-cp', options.classpath, 'uk.ac.cam.lib.cudl.xsltnail.XSLTNailgunServer',
             '--address-type', this.options.addressType, this.options.listenAddress];
         this.process = spawn(options.jvmExecutable, args, {stdio: ['ignore', 'pipe', 'pipe']});
+
+        // To ensure we don't leak child processes if something unexpected happens, we listen for our process exiting
+        // and kill the child.
+        process.on('exit', this.boundOnProcessExit);
+
+        // We need to unref the process, not because we want it to run beyond our lifetime, but because we shut it down
+        // automatically in the process beforeExit event, and that event never fires if the process is referenced by the
+        // event loop.
+        this.process.unref();
 
         this.processExit = new Promise<ProcessExit>((resolve, reject) => {
             this.process.on('exit', (code, signal) => {
@@ -460,8 +479,8 @@ ${this.getCurrentStderr()}`);
                 clearTimeout(timeoutTimer);
             };
 
-            const rl = readline.createInterface({input: stdout, crlfDelay: Infinity});
-            rl.on('line', (line) => {
+            const stdoutLines = readline.createInterface({input: stdout, crlfDelay: Infinity});
+            stdoutLines.on('line', (line) => {
                 if(!/^NGServer [\d.]+ started/.test(line)) { return; }
 
                 // Port 0 means the server selects a port to listen on. We need to check the output to see which port
@@ -479,9 +498,11 @@ ${this.getCurrentStderr()}`);
                     address = this.address;
                 }
 
-                rl.removeAllListeners('line');
-                rl.close();
-                stdout.pipe(new DevNull());
+                stdoutLines.removeAllListeners('line');
+                stdoutLines.close();
+                // We need to close our end of the server's stdout pipe, otherwise our event loop will not be able to
+                // terminate.
+                stdout.destroy();
                 cancelStartupTimeout();
                 resolve(address);
             });
@@ -511,10 +532,24 @@ ${this.getCurrentStderr()}`, error));
             this.stderrLines.enq(line);
         });
 
+        // As with stdout, we need to stop reading from stdin, otherwise our event loop won't terminate. However if
+        // debug is enabled we keep reading it.
+        if(!this.debug) {
+            this.serverStarted.then(() => {
+                DEBUG.jvmProcess(`\
+nailgun server\'s stderr will no longer be monitored as the server has started and debug is disabled`);
+                stderrLines.removeAllListeners('line');
+                stderrLines.close();
+                stderr.destroy();
+            }, () => undefined);
+        }
+
         this.handlePromiseRejections();
     }
 
     public async close(): Promise<void> {
+        if(this.closeCalled) { return; }
+        this.closeCalled = true;
         DEBUG.jvmProcess('stopping JVM; pid=%d', this.process.pid);
         this.process.kill();
         const timer = _timeout(6000, 'timeout');
@@ -528,10 +563,19 @@ ${this.getCurrentStderr()}`, error));
             DEBUG.jvmProcess('stopped JVM; pid=%d', this.process.pid);
             timer.close();
         }
+        process.removeListener('exit', this.boundOnProcessExit);
     }
 
     public getCurrentStderr(): string {
         return this.stderrLines.peekN(this.stderrLines.size()).join('\n');
+    }
+
+    private onProcessExit(): void {
+        if(!this.process.killed) {
+            DEBUG.jvmProcess(`\
+received our node process's 'exit' event, but our nailgun server hasn't been killed; sending it SIGKILL`);
+            this.process.kill('SIGKILL');
+        }
     }
 
     /**

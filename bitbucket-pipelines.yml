@@ -45,14 +45,14 @@ definitions:
             caches:
               - node
             script:
-              - examples/run-all.sh
+              - npm run integration-test
         - step:
             name: Integration test Node 12, Java 13
             image: camdl/node-xslt-nailgun-pipelines:1.0.0-node-12-jre-13
             caches:
               - node
             script:
-              - examples/run-all.sh
+              - npm run integration-test
 
 pipelines:
   tags:

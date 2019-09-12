@@ -22,6 +22,7 @@
     "docs": "typedoc --ignoreCompilerErrors --out docs src",
     "test": "jest",
     "ci-test": "jest --ci --reporters=default --reporters=jest-junit",
+    "integration-test": "integration-test/run-all.sh",
     "lint": "tslint --project tsconfig.json",
     "prepack": "echo \"Error: You can't pack/publish from the un-built repo root, use \\`make\\` to build\" >&2; false",
     "_prepack": "[ \"$(git status --porcelain)\" = '' ] || exit 1"
@@ -55,7 +56,6 @@
   "dependencies": {
     "bl": "^3.0.0",
     "debug": "^4.1.1",
-    "dev-null": "^0.1.1",
     "json-stable-stringify": "^1.0.1",
     "object.values": "^1.1.0",
     "p-finally": "^2.0.1",
