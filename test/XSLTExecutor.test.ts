@@ -10,6 +10,11 @@ const baseURIXslPath = path.resolve(testResourcesDir, 'base-uri.xsl');
 const aXmlPath = path.resolve(testResourcesDir, 'a.xml');
 const aXmlURI = new URL(aXmlPath, 'file://').toString();
 
+function nextProcessID() {
+    return `${__filename}-${nextProcessID.seq++}`;
+}
+nextProcessID.seq = 0;
+
 test.each<[string, ExecuteOptions]>([
     ['from string value', {xml: '<a/>', xsltPath: aXslPath}],
     ['from Buffer value', {xml: Buffer.from('<a/>'), xsltPath: aXslPath}],
@@ -87,7 +92,7 @@ test('execute() rejects with UserError when execution of XSLT raises an error', 
 });
 
 test('execute() cannot be invoked after executor is closed', async () => {
-    const executor = XSLTExecutor.getInstance({unique: true});
+    const executor = XSLTExecutor.getInstance({jvmProcessID: nextProcessID()});
     await executor.close();
     const result = executor.execute({xml: '<a/>', xsltPath: aXslPath});
 
@@ -95,7 +100,7 @@ test('execute() cannot be invoked after executor is closed', async () => {
 });
 
 test('execute() rejects with InternalError when unable to connect to the nailgun server', async () => {
-    const result = using(XSLTExecutor.getInstance({unique: true}), async executor => {
+    const result = using(XSLTExecutor.getInstance({jvmProcessID: nextProcessID()}), async executor => {
         const serverProcess: JVMProcess = await (executor as any).serverProcessRef.resource;
 
         // Report the server's listen address incorrectly so that connecting fails
@@ -110,7 +115,7 @@ test('execute() rejects with InternalError when unable to connect to the nailgun
 });
 
 test('execute() rejects with InternalError when nailgun server closes before execution is complete', async () => {
-    const result = using(XSLTExecutor.getInstance({unique: true}), async executor => {
+    const result = using(XSLTExecutor.getInstance({jvmProcessID: nextProcessID()}), async executor => {
         const serverProcess: JVMProcess = await (executor as any).serverProcessRef.resource;
         await serverProcess.serverStarted;
         const _result = executor.execute({xml: '<a/>', xsltPath: path.resolve(testResourcesDir, 'infinite-loop.xsl')});
@@ -146,4 +151,52 @@ test('concurrent execute()', async () => {
 <result><foo n="${i}">hi</foo></result>`);
     }
     expect.assertions(count);
+});
+
+async function runTransform(keepAliveTimeout: number): Promise<number> {
+    const {pid, result} = await using(XSLTExecutor.getInstance(
+        {jvmKeepAliveTimeout: keepAliveTimeout}), async (executor) => {
+        return {pid: getNailgunServerPID(executor), result: executor.execute({xml: '<a/>', xsltPath: aXslPath})};
+    });
+
+    await expect((await result).toString()).toEqualXML(`\
+<?xml version="1.0" encoding="UTF-8"?>
+<result><a/></result>`);
+
+    return pid;
+}
+
+async function getNailgunServerPID(executor: XSLTExecutor): Promise<number> {
+    return (await (executor as any).serverProcessRef.resource).process.pid;
+}
+
+test('executor reuses nailgun server when within an un-elapsed jvmKeepAliveTimeout', async () => {
+    jest.useFakeTimers();
+    const keepAlive = 2000;
+
+    const pid1 = await runTransform(keepAlive);
+    // The keep-alive hasn't quite expired, so this will use the same server
+    jest.advanceTimersByTime(keepAlive - 1);
+    const pid2 = await runTransform(keepAlive);
+
+    // The keep-alive resets on each use, so now 2000ms needs to elapse - not 1 - before the server expires
+    jest.advanceTimersByTime(keepAlive - 1);
+    const pid3 = await runTransform(keepAlive);
+
+    // The keep-alive has now expired, this execution will need to start a new server
+    jest.advanceTimersByTime(keepAlive);
+    const pid4 = await runTransform(keepAlive);
+
+    expect(pid1).toBe(pid2);
+    expect(pid1).toBe(pid3);
+    expect(pid1).not.toBe(pid4);
+});
+
+test('executor doesn\'t use keep-alive when timeout is 0', async () => {
+    const keepAlive = 0;
+
+    const pid1 = await runTransform(keepAlive);
+    const pid2 = await runTransform(keepAlive);
+
+    expect(pid1).not.toBe(pid2);
 });

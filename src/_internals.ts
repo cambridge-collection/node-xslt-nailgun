@@ -3,13 +3,12 @@ import BufferList from 'bl';
 import {ChildProcess, spawn} from 'child_process';
 import DevNull from 'dev-null';
 import jsonStableStringify from 'json-stable-stringify';
-import {type} from 'os';
 import promiseFinally from 'p-finally';
 import path from 'path';
 import readline from 'readline';
 import RingBuffer from 'ringbufferjs';
 import {Readable} from 'stream';
-import {AsyncParallelHook, SyncHook} from 'tapable';
+import {AsyncParallelHook, SyncBailHook, SyncHook, Tap} from 'tapable';
 import TraceError from 'trace-error';
 import * as util from 'util';
 import {Closable, using} from './_resources';
@@ -47,7 +46,20 @@ export interface CreateOptions {
      * server process, rather than sharing with other concurrently-active
      * executors.
      */
-    unique?: boolean;
+
+    /**
+     * An opaque identifier for the JVM process. execute() calls with distinct jvmProcessID values will use distinct
+     * JVM processes. This can be used to isolate execute() environments, and also to identify the process affected
+     * when an async JVM process close error occurs.
+     */
+    jvmProcessID?: string | null;
+
+    /**
+     * The number of milliseconds to keep the nailgun server running for after
+     * all execute() calls have completed. If null (the default), the timeout
+     * will be determined automatically.
+     */
+    jvmKeepAliveTimeout?: number | null;
 }
 type StrictCreateOptions = Required<CreateOptions>;
 
@@ -95,50 +107,66 @@ export class IPServerAddress {
     }
 }
 
-export interface JVMProcessOptions extends Omit<Required<CreateOptions>, 'unique'>, ServerAddress {
+export interface JVMProcessOptions
+    extends Omit<Required<CreateOptions>, 'jvmKeepAliveTimeout' | 'jvmProcessID'>, ServerAddress {
+
     classpath: string;
     startupTimeout?: number;
 }
 
 function populateDefaults(options: CreateOptions): StrictCreateOptions {
     return {
-        jvmExecutable: options.jvmExecutable || 'java',
-        unique: options.unique === true,
+        jvmExecutable: options.jvmExecutable === undefined ? 'java' : options.jvmExecutable,
+        jvmProcessID: options.jvmProcessID === undefined ? null : options.jvmProcessID,
+        jvmKeepAliveTimeout: options.jvmKeepAliveTimeout === undefined ? null : options.jvmKeepAliveTimeout,
     };
 }
 
-interface AutoCloserReference<T extends Closable> extends Closable {
+export interface AutoCloserReference<T extends Closable> extends Closable {
     readonly resource: Promise<T>;
 }
 
+class AutoCloserHooks {
+    public readonly asyncCloseError = new SyncBailHook<any>(['error']);
+}
+
 interface AutoCloser<T extends Closable> {
+    readonly hooks: AutoCloserHooks;
     isClosed(): boolean;
     ref(): AutoCloserReference<T>;
 }
 
 class KeepAliveStrategyHooks<T extends Closable> {
-    public readonly onDead = new AsyncParallelHook();
+    public readonly dead = new AsyncParallelHook();
+    public readonly asyncCloseError = new SyncBailHook<any>(['error']);
+
+    constructor() {
+        // Throw errors by default if nobody taps asyncCloseError
+        this.asyncCloseError.tap({name: 'KeepAliveStrategyHooks', stage: Number.MAX_SAFE_INTEGER} as Tap, (error) => {
+            throw error;
+        });
+    }
 }
 
 interface KeepAliveStrategy<T extends Closable> {
     readonly hooks: KeepAliveStrategyHooks<T>;
     isAlive(): boolean;
-    accept(hooks: DefaultAutoCloserHooks<T>): void;
+    accept(hooks: DefaultAutoCloserKeepAliveHooks<T>): void;
 }
 
 abstract class BaseKeepAliveStrategy<T extends Closable = Closable> implements KeepAliveStrategy<T>{
     public readonly hooks = new KeepAliveStrategyHooks<T>();
     protected _isAlive: boolean;
-    private autoCloserHooks: DefaultAutoCloserHooks<T>;
+    private autoCloserHooks: DefaultAutoCloserKeepAliveHooks<T>;
 
     protected constructor(isAliveByDefault: boolean) {
         this._isAlive = isAliveByDefault;
     }
 
-    public accept(hooks: DefaultAutoCloserHooks<T>): void {
+    public accept(_hooks: DefaultAutoCloserKeepAliveHooks<T>): void {
         if(this.autoCloserHooks !== undefined)
             throw new Error('accept() called multiple times');
-        this.autoCloserHooks = hooks;
+        this.autoCloserHooks = _hooks;
 
         this.autoCloserHooks.refOpened.tap(this.constructor.name, this.onRefOpened.bind(this));
         this.autoCloserHooks.refClosed.tapPromise(this.constructor.name, this.onRefClosed.bind(this));
@@ -163,7 +191,7 @@ export class ReferenceCountKeepAliveStrategy extends BaseKeepAliveStrategy<Closa
         this.refs.delete(ref);
         if(this.isAlive() && this.refs.size === 0) {
             this._isAlive = false;
-            await this.hooks.onDead.promise();
+            await this.hooks.dead.promise();
         }
     }
 
@@ -175,34 +203,112 @@ export class ReferenceCountKeepAliveStrategy extends BaseKeepAliveStrategy<Closa
     }
 }
 
-class DefaultAutoCloserHooks<T extends Closable> {
+export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
+    private openRefCount: number = 0;
+    private timer: Timeout;
+    private timeout: number;
+
+    public constructor(timeout: number) {
+        super(true);
+        this.updateTimeout(timeout);
+
+        process.on('beforeExit', this.onBeforeExit.bind(this));
+    }
+
+    public updateTimeout(timeout: number) {
+        if(timeout < 0)
+            throw new Error(`timeout must be >= 0; timeout: ${timeout}`);
+        this.timeout = timeout;
+    }
+
+    protected async onRefClosed(ref: AutoCloserReference<Closable>): Promise<void> {
+        assert(this.openRefCount > 0);
+        this.openRefCount--;
+
+        if(this.openRefCount === 0) {
+            if(this.timer !== undefined) {
+                clearTimeout(this.timer);
+            }
+
+            if(this.timeout === 0) {
+                this.onTimeoutExpired();
+            }
+            else {
+                this.timer = setTimeout(this.onTimeoutExpired.bind(this), this.timeout);
+                this.timer.unref();
+            }
+        }
+    }
+
+    protected onRefOpened(ref: AutoCloserReference<Closable>): void {
+        if(this.timer !== undefined) {
+            clearTimeout(this.timer);
+        }
+        this.openRefCount++;
+        this._isAlive = true;
+    }
+
+    private onBeforeExit(): void {
+        // Called from the process 'beforeExit' event - the node process is trying to exit, so we'll act as if the timer
+        // had expired, so the resource gets cleaned up right away (assuming there are no active references remaining).
+        this.onTimeoutExpired();
+    }
+
+    private onTimeoutExpired(): void {
+        if(this.openRefCount > 0) {
+            return;
+        }
+
+        this._isAlive = false;
+        this.hooks.dead.callAsync((err: any) => {
+            // If closing fails we have no direct caller to report the error to, so we pass it to our async error hook
+            // for handling.
+            if(err) {
+                this.hooks.asyncCloseError.call(err);
+            }
+        });
+    }
+}
+
+export class DefaultAutoCloserKeepAliveHooks<T extends Closable> {
     public readonly refOpened = new SyncHook<AutoCloserReference<T>>(['ref']);
     public readonly refClosed = new AsyncParallelHook<AutoCloserReference<T>>(['ref']);
 }
 
-type NonEmptyArray<T> = {0: T} & T[];
-
 export class DefaultAutoCloser<T extends Closable> implements AutoCloser<T> {
+    public readonly hooks: AutoCloserHooks;
+
     private _isClosed: boolean;
     private readonly resource: Promise<T>;
-    private readonly hooks: DefaultAutoCloserHooks<T>;
+    private readonly keepAliveHooks: DefaultAutoCloserKeepAliveHooks<T>;
     private readonly keepAliveStrategies: ReadonlyArray<KeepAliveStrategy<T>>;
 
-    public constructor(keepAliveStrategies: KeepAliveStrategy<T> | NonEmptyArray<KeepAliveStrategy<T>>,
-                       resource: T | Promise<T>) {
+    public constructor(resource: T | Promise<T>,
+                       keepAliveStrategy: KeepAliveStrategy<T>,
+                       ...moreKeepAliveStrategies: Array<KeepAliveStrategy<T>>);
+    public constructor(resource: T | Promise<T>, keepAliveStrategies: Array<KeepAliveStrategy<T>>);
+    public constructor(resource: T | Promise<T>,
+                       keepAliveStrategies: KeepAliveStrategy<T> | Array<KeepAliveStrategy<T>>,
+                       ...moreKeepAliveStrategies: Array<KeepAliveStrategy<T>>) {
         this._isClosed = false;
         this.resource = Promise.resolve(resource);
-        this.hooks = new DefaultAutoCloserHooks<T>();
+        this.hooks = new AutoCloserHooks();
+        this.keepAliveHooks = new DefaultAutoCloserKeepAliveHooks<T>();
         this.keepAliveStrategies = Array.isArray(keepAliveStrategies) ?
-            [...keepAliveStrategies] : [keepAliveStrategies];
+            [...keepAliveStrategies, ...moreKeepAliveStrategies] :
+            [keepAliveStrategies, ...moreKeepAliveStrategies];
 
         if(this.keepAliveStrategies.length === 0) {
             throw new Error('no KeepAliveStrategy instances provided');
         }
 
         for (const keepAlive of this.keepAliveStrategies) {
-            keepAlive.accept(this.hooks);
-            keepAlive.hooks.onDead.tapPromise(this.constructor.name, this.onKeepAliveDeath.bind(this));
+            keepAlive.accept(this.keepAliveHooks);
+            keepAlive.hooks.dead.tapPromise(this.constructor.name, this.onKeepAliveDeath.bind(this));
+            // Forward async close errors to our own equivalent hook
+            keepAlive.hooks.asyncCloseError.tap(this.constructor.name, (error) => {
+                this.hooks.asyncCloseError.call(error);
+            });
         }
     }
 
@@ -219,10 +325,10 @@ export class DefaultAutoCloser<T extends Closable> implements AutoCloser<T> {
         const ref: AutoCloserReference<T> = {
             resource: this.resource,
             async close(): Promise<void> {
-                await autoCloser.hooks.refClosed.promise(ref);
+                await autoCloser.keepAliveHooks.refClosed.promise(ref);
             },
         };
-        this.hooks.refOpened.call(ref);
+        this.keepAliveHooks.refOpened.call(ref);
         return ref;
     }
 
@@ -366,7 +472,7 @@ ${this.getCurrentStderr()}`, error));
 
     public async close(): Promise<void> {
         this.process.kill();
-        const timer = timeout(6000, 'timeout');
+        const timer = _timeout(6000, 'timeout');
         const result = await Promise.race([this.processExit.catch(() => undefined), timer.finished]);
         if(result === 'timeout') {
             this.process.kill('SIGKILL');
@@ -398,7 +504,7 @@ ${this.getCurrentStderr()}`, error));
     }
 }
 
-export function timeout<T>(ms: number, value?: T): {finished: Promise<T>} & Closable {
+function _timeout<T>(ms: number, value?: T): {finished: Promise<T>} & Closable {
     let resolve: () => void;
     let id: Timeout;
     const close = () => {
@@ -410,21 +516,67 @@ export function timeout<T>(ms: number, value?: T): {finished: Promise<T>} & Clos
         id = setTimeout(_resolve, ms, value);
     })};
 }
+export {_timeout as timeout};
 
 const serverProcesses = new Map<string, AutoCloser<JVMProcess>>();
 
+class XSLTNailgunHooks {
+    /**
+     * Triggered if a JVM process fails to shutdown when being terminated outside an execute() call, e.g. being
+     * terminated as the result of a keep alive timeout expiring after an execute() call has completed.
+     */
+    public readonly asyncJVMShutdownError = new SyncBailHook<any, StrictCreateOptions>(['error', 'options']);
+
+    constructor() {
+        const options: Partial<Tap> = {name: 'XSLTNailgunHooks', stage: Number.MAX_SAFE_INTEGER};
+
+        // Throw by default if nothing handles an error
+        this.asyncJVMShutdownError.tap(options as Tap, (error, _options) => {
+            throw new TraceError(`\
+Unhandled xslt-nailgun JVM process shutdown error; JVM options: ${JSON.stringify(_options)}.
+To handle this error, tap require('xslt-nailgun').hooks.asyncJVMShutdownError`, error);
+        });
+    }
+}
+export const hooks = new XSLTNailgunHooks();
+
+const DEFAULT_JVM_TIMEOUT_INITIAL = 1000;
+const DEFAULT_JVM_TIMEOUT_STARTUP_FACTOR = 6;
+const DEFAULT_JVM_TIMEOUT_MAX = 10000;
+
 function getServerProcessReference(options: StrictCreateOptions): AutoCloserReference<JVMProcess> {
+    if(options.jvmKeepAliveTimeout !== null && options.jvmKeepAliveTimeout < 0) {
+        throw new Error('jvmKeepAliveTimeout cannot be negative');
+    }
     const optionsKey = jsonStableStringify(options);
     const procCloser = serverProcesses.get(optionsKey);
-    if(options.unique || procCloser === undefined || procCloser.isClosed()) {
-        const autoCloser = new DefaultAutoCloser<JVMProcess>(
-            [new ReferenceCountKeepAliveStrategy()],
-            JVMProcess.listeningOnRandomPort({...options, classpath: getClasspath()}));
+    if(procCloser === undefined || procCloser.isClosed()) {
+        const keepAliveStrategies: Array<KeepAliveStrategy<JVMProcess>> = [new ReferenceCountKeepAliveStrategy()];
 
-        // Don't share the server process if an unique executor is requested.
-        if(!options.unique) {
-            serverProcesses.set(optionsKey, autoCloser);
+        let timeoutKeepAlive: TimeoutKeepAliveStrategy | null = null;
+        if(options.jvmKeepAliveTimeout !== 0) {
+            timeoutKeepAlive = new TimeoutKeepAliveStrategy(options.jvmKeepAliveTimeout || DEFAULT_JVM_TIMEOUT_INITIAL);
+            keepAliveStrategies.push(timeoutKeepAlive);
         }
+
+        const jvmProcess = JVMProcess.listeningOnRandomPort({...options, classpath: getClasspath()});
+        const autoCloser = new DefaultAutoCloser<JVMProcess>(jvmProcess, keepAliveStrategies);
+        serverProcesses.set(optionsKey, autoCloser);
+
+        // If no timeout is specified, we automatically set the timeout based on the time it takes to start the nailgun
+        // server.
+        if(options.jvmKeepAliveTimeout === null) {
+            const processStartTime = Date.now();
+            jvmProcess.then(proc => {
+                proc.serverStarted.then(() => {
+                    const autoTimeout = Math.max(0, Math.min(DEFAULT_JVM_TIMEOUT_MAX,
+                        (Date.now() - processStartTime) * DEFAULT_JVM_TIMEOUT_STARTUP_FACTOR));
+                    if(timeoutKeepAlive === null) { return; }
+                    timeoutKeepAlive.updateTimeout(autoTimeout);
+                }, (ignored) => undefined);
+            }, (ignored) => undefined);
+        }
+
         return autoCloser.ref();
     }
     else {

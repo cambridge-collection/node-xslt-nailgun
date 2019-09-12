@@ -7,7 +7,7 @@ test('resource is closed after initial user completes', async () => {
     const mockClose = jest.fn();
     const resource = {close: mockClose};
 
-    const closer = new DefaultAutoCloser(new ReferenceCountKeepAliveStrategy(), Promise.resolve(resource));
+    const closer = new DefaultAutoCloser(Promise.resolve(resource), new ReferenceCountKeepAliveStrategy());
     expect(closer.isClosed()).toBe(false);
     expect(mockClose.mock.calls.length).toBe(0);
 
@@ -28,7 +28,7 @@ test('resource is not closed when a ref closes if another ref is active', async 
     const mockClose = jest.fn();
     const resource = {close: mockClose};
 
-    const closer = new DefaultAutoCloser(new ReferenceCountKeepAliveStrategy(), Promise.resolve(resource));
+    const closer = new DefaultAutoCloser(Promise.resolve(resource), new ReferenceCountKeepAliveStrategy());
     const ref1 = closer.ref();
     const ref2 = closer.ref();
     expect(closer.isClosed()).toBe(false);
@@ -48,7 +48,7 @@ test('using() closes references', async () => {
     const mockClose = jest.fn();
     const resource = {close: mockClose};
 
-    const closer = new DefaultAutoCloser(new ReferenceCountKeepAliveStrategy(), Promise.resolve(resource));
+    const closer = new DefaultAutoCloser(Promise.resolve(resource), new ReferenceCountKeepAliveStrategy());
 
     const use1 = using(closer.ref(), async ref => {
         await expect(ref.resource).resolves.toBe(resource);
