@@ -5,3 +5,4 @@
 * Update `execute()` signature to take an object:
   - make the system identifier arg optional
   - allow specifying the XSLT program as a string, not just a path
+* Log behaviour to the `debug` module (or similar)
