@@ -836,6 +836,6 @@ function abortOnError<T>(promise: Promise<T>, errorProducer: Promise<any>): Prom
     ]) as Promise<T>;
 }
 
-export async function execute(options: ExecuteOptions) {
-    return using(XSLTExecutor.getInstance(), (executor) => executor.execute(options));
+export async function execute(options: ExecuteOptions & CreateOptions) {
+    return using(XSLTExecutor.getInstance(options), (executor) => executor.execute(options));
 }

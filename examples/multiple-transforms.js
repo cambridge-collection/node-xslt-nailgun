@@ -19,7 +19,7 @@ Each transform re-uses the same nailgun server, so they're quick once the first
 one has caused the XSLT to be loaded.
 `);
     let overallStart = performance.now();
-    await using(XSLTExecutor.getInstance(), async (executor) => {
+    await using(XSLTExecutor.getInstance({jvmProcessID: 'series'}), async (executor) => {
         for(let i = 0; i < 10; ++i) {
             let start = performance.now();
             let buffer = await executor.execute({
@@ -44,7 +44,9 @@ taken is slightly less than running in series.
         let start = performance.now();
         let buffer = await execute({
             xml: `<foo n="${i}">hi</foo>`,
-            xsltPath: path.resolve(__dirname, 'wrap.xsl')
+            xsltPath: path.resolve(__dirname, 'wrap.xsl'),
+            jvmProcessID: 'execute() without keep-alive parallel',
+            jvmKeepaliveTimeout: 0
         });
         return {buffer, elapsed: performance.now() - start};
     });
@@ -72,7 +74,9 @@ above.
         let start = performance.now();
         let buffer = await execute({
             xml: `<foo n="${i}">hi</foo>`,
-            xsltPath: path.resolve(__dirname, 'wrap.xsl')
+            xsltPath: path.resolve(__dirname, 'wrap.xsl'),
+            jvmProcessID: 'execute() without keep-alive series',
+            jvmKeepaliveTimeout: 0
         });
         console.log(`${Math.round(performance.now() - start)} ms: `, buffer.toString());
     }
