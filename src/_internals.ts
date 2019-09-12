@@ -1,6 +1,7 @@
 import assert from 'assert';
 import BufferList from 'bl';
 import {ChildProcess, spawn} from 'child_process';
+import createDebug from 'debug';
 import DevNull from 'dev-null';
 import jsonStableStringify from 'json-stable-stringify';
 import promiseFinally from 'p-finally';
@@ -14,6 +15,14 @@ import * as util from 'util';
 import {Closable, using} from './_resources';
 import jvmpin from './vendor/jvmpin/lib/jvmpin';
 import Timeout = NodeJS.Timeout;
+
+const _debugPrefix = '@lib.cam/xslt-nailgun';
+const DEBUG = {
+    jvmProcess: createDebug(`${_debugPrefix}:jvm-process`),
+    processSharing: createDebug(`${_debugPrefix}:process-sharing`),
+    keepAliveTimeout: createDebug(`${_debugPrefix}:keep-alive-timeout`),
+    defaultAutoCloser: createDebug(`${_debugPrefix}:auto-closer`),
+};
 
 export class XSLTNailgunError extends TraceError {}
 export class UserError extends XSLTNailgunError {
@@ -205,7 +214,7 @@ export class ReferenceCountKeepAliveStrategy extends BaseKeepAliveStrategy<Closa
 
 export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
     private openRefCount: number = 0;
-    private timer: Timeout;
+    private timer?: Timeout;
     private timeout: number;
 
     public constructor(timeout: number) {
@@ -214,6 +223,8 @@ export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
 
         process.on('beforeExit', this.onBeforeExit.bind(this));
     }
+
+    public getTimeout(): number { return this.timeout; }
 
     public updateTimeout(timeout: number) {
         if(timeout < 0)
@@ -226,14 +237,13 @@ export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
         this.openRefCount--;
 
         if(this.openRefCount === 0) {
-            if(this.timer !== undefined) {
-                clearTimeout(this.timer);
-            }
+            this.cancelTimeout();
 
             if(this.timeout === 0) {
                 this.onTimeoutExpired();
             }
             else {
+                DEBUG.keepAliveTimeout('staying alive for %d ms', this.timeout);
                 this.timer = setTimeout(this.onTimeoutExpired.bind(this), this.timeout);
                 this.timer.unref();
             }
@@ -241,29 +251,42 @@ export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
     }
 
     protected onRefOpened(ref: AutoCloserReference<Closable>): void {
-        if(this.timer !== undefined) {
-            clearTimeout(this.timer);
+        if(this.cancelTimeout()) {
+            DEBUG.keepAliveTimeout('cancelled timeout because a new reference was created');
         }
         this.openRefCount++;
         this._isAlive = true;
     }
 
+    private cancelTimeout(): boolean {
+        if(this.timer !== undefined) {
+            clearTimeout(this.timer);
+            this.timer = undefined;
+            return true;
+        }
+        return false;
+    }
+
     private onBeforeExit(): void {
         // Called from the process 'beforeExit' event - the node process is trying to exit, so we'll act as if the timer
         // had expired, so the resource gets cleaned up right away (assuming there are no active references remaining).
+        DEBUG.keepAliveTimeout('received process `beforeExit` event while waiting for timeout; - expiring immediately');
         this.onTimeoutExpired();
     }
 
     private onTimeoutExpired(): void {
+        this.cancelTimeout();
         if(this.openRefCount > 0) {
             return;
         }
 
+        DEBUG.keepAliveTimeout('keep-alive timeout expired');
         this._isAlive = false;
         this.hooks.dead.callAsync((err: any) => {
             // If closing fails we have no direct caller to report the error to, so we pass it to our async error hook
             // for handling.
             if(err) {
+                DEBUG.keepAliveTimeout('got an async close error after reporting death; error=%O', err);
                 this.hooks.asyncCloseError.call(err);
             }
         });
@@ -322,23 +345,39 @@ export class DefaultAutoCloser<T extends Closable> implements AutoCloser<T> {
         }
 
         const autoCloser = this;
+        let closed = false;
         const ref: AutoCloserReference<T> = {
             resource: this.resource,
             async close(): Promise<void> {
+                if(closed) {
+                    DEBUG.defaultAutoCloser('close() called on already-closed ref');
+                    return;
+                }
+                closed = true;
+                DEBUG.defaultAutoCloser('closed a ref');
                 await autoCloser.keepAliveHooks.refClosed.promise(ref);
             },
         };
+        DEBUG.defaultAutoCloser('created a ref');
         this.keepAliveHooks.refOpened.call(ref);
         return ref;
     }
 
     private async onKeepAliveDeath(): Promise<void> {
         if(this._isClosed) {
+            DEBUG.defaultAutoCloser('keep-alive strategy reported death while already closed');
             return;
         }
         if(this.keepAliveStrategies.every(keepAlive => !keepAlive.isAlive())) {
+            DEBUG.defaultAutoCloser('all %d keep-alive strategies are dead, closing', this.keepAliveStrategies.length);
             this._isClosed = true;
             await (await this.resource).close();
+        }
+        else {
+            if(DEBUG.defaultAutoCloser.enabled) {
+                DEBUG.defaultAutoCloser('keep-alive strategy reported its death, but %d are still alive',
+                    this.keepAliveStrategies.reduce((count, keepAlive) => count + Number(keepAlive.isAlive()), 0));
+            }
         }
     }
 }
@@ -374,11 +413,9 @@ export class JVMProcess implements Closable {
         this.options = {...options};
         this.address = parseServerAddress(options);
         this.stderrLines = new RingBuffer<string>(500);
-        this.process = spawn(
-            options.jvmExecutable,
-            ['-cp', options.classpath, 'uk.ac.cam.lib.cudl.xsltnail.XSLTNailgunServer',
-                '--address-type', this.options.addressType, this.options.listenAddress],
-            {stdio: ['ignore', 'pipe', 'pipe']});
+        const args = ['-cp', options.classpath, 'uk.ac.cam.lib.cudl.xsltnail.XSLTNailgunServer',
+            '--address-type', this.options.addressType, this.options.listenAddress];
+        this.process = spawn(options.jvmExecutable, args, {stdio: ['ignore', 'pipe', 'pipe']});
 
         this.processExit = new Promise<ProcessExit>((resolve, reject) => {
             this.process.on('exit', (code, signal) => {
@@ -393,6 +430,8 @@ export class JVMProcess implements Closable {
                 }
             });
         });
+        DEBUG.jvmProcess('spawned new JVM; pid=%d, command=%s, args=%o',
+            this.process.pid, options.jvmExecutable, args);
 
         if(this.process.stdout === null)
             throw new Error('ChildProcess has no stdout');
@@ -471,14 +510,17 @@ ${this.getCurrentStderr()}`, error));
     }
 
     public async close(): Promise<void> {
+        DEBUG.jvmProcess('stopping JVM; pid=%d', this.process.pid);
         this.process.kill();
         const timer = _timeout(6000, 'timeout');
         const result = await Promise.race([this.processExit.catch(() => undefined), timer.finished]);
         if(result === 'timeout') {
+            DEBUG.jvmProcess('JVM failed to shutdown, sending SIGKILL; pid=%d', this.process.pid);
             this.process.kill('SIGKILL');
             await this.processExit.catch(() => undefined);
         }
         else {
+            DEBUG.jvmProcess('stopped JVM; pid=%d', this.process.pid);
             timer.close();
         }
     }
@@ -559,6 +601,17 @@ function getServerProcessReference(options: StrictCreateOptions): AutoCloserRefe
             keepAliveStrategies.push(timeoutKeepAlive);
         }
 
+        if(DEBUG.processSharing.enabled) {
+            if(timeoutKeepAlive !== null) {
+                const timeout = options.jvmKeepAliveTimeout === null ?
+                    `automatic, provisionally ${DEFAULT_JVM_TIMEOUT_INITIAL}` : timeoutKeepAlive.getTimeout();
+                DEBUG.processSharing(
+                    'no existing process available, spawning with keep-alive; keep-alive timeout=%s ms, key=%s',
+                    timeout, optionsKey);
+            }
+            else
+                DEBUG.processSharing('no existing process available, spawning without keep-alive; key=%s', optionsKey);
+        }
         const jvmProcess = JVMProcess.listeningOnRandomPort({...options, classpath: getClasspath()});
         const autoCloser = new DefaultAutoCloser<JVMProcess>(jvmProcess, keepAliveStrategies);
         serverProcesses.set(optionsKey, autoCloser);
@@ -572,6 +625,8 @@ function getServerProcessReference(options: StrictCreateOptions): AutoCloserRefe
                     const autoTimeout = Math.max(0, Math.min(DEFAULT_JVM_TIMEOUT_MAX,
                         (Date.now() - processStartTime) * DEFAULT_JVM_TIMEOUT_STARTUP_FACTOR));
                     if(timeoutKeepAlive === null) { return; }
+                    DEBUG.processSharing('automatic keep-alive timeout determined; timeout=%d ms, key=%s',
+                        autoTimeout, optionsKey);
                     timeoutKeepAlive.updateTimeout(autoTimeout);
                 }, (ignored) => undefined);
             }, (ignored) => undefined);
@@ -580,6 +635,7 @@ function getServerProcessReference(options: StrictCreateOptions): AutoCloserRefe
         return autoCloser.ref();
     }
     else {
+        DEBUG.processSharing('request fulfilled using existing process; key=%s', optionsKey);
         return procCloser.ref();
     }
 }
