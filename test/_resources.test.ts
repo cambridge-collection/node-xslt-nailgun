@@ -11,8 +11,22 @@ class Thing implements Closable {
 test('using() closes resource after user\'s promise resolves', async () => {
     const resource = new Thing();
 
+    const result = await using(resource, async r => {
+        expect(r).toBe(resource);
+        expect(resource.isClosed).toBe(false);
+        return 42;
+    });
+
+    expect(result).toBe(42);
+    expect(resource.isClosed).toBe(true);
+    expect.assertions(4);
+});
+
+test('using() resource can be a Promise', async () => {
+    const resource = new Thing();
+
     const result = await using(Promise.resolve(resource), async r => {
-        expect(await r).toBe(resource);
+        expect(r).toBe(resource);
         expect(resource.isClosed).toBe(false);
         return 42;
     });
@@ -24,7 +38,7 @@ test('using() closes resource after user\'s promise resolves', async () => {
 
 test('using() closes resource if user function does not return a promise', async () => {
     const resource = new Thing();
-    await expect(using(Promise.resolve(resource), () => 42)).resolves.toBe(42);
+    await expect(using(resource, () => 42)).resolves.toBe(42);
     expect(resource.isClosed).toBe(true);
     expect.assertions(2);
 });
@@ -32,7 +46,7 @@ test('using() closes resource if user function does not return a promise', async
 test('using() closes resource if user function throws error', async () => {
     const resource = new Thing();
 
-    const result = using(Promise.resolve(resource), async () => {
+    const result = using(resource, async () => {
         expect(resource.isClosed).toBe(false);
         throw new Error('failed to use resource');
     });
