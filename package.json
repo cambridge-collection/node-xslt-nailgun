@@ -19,7 +19,8 @@
   },
   "scripts": {
     "build": "tsc --build tsconfig.build.json",
-    "test": "jest",
+    "test": "npm run $([ \"$CI\" = true ] && echo ci-test || echo non-ci-test)",
+    "non-ci-test": "jest",
     "ci-test": "jest --ci --reporters=default --reporters=jest-junit",
     "integration-test": "integration-test/run-all.sh",
     "lint": "tslint --project tsconfig.json",

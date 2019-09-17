@@ -3,4 +3,4 @@
 /java/target
 node_modules
 /build
-/test-reports
+test-reports

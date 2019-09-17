@@ -4,14 +4,13 @@
   "description": "Integration tests for @lib.cam/xslt-nailgun",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "preinstall": "./preinstall.sh",
-    "integration-test": "node_modules/.bin/bats integration-tests.bats"
+    "integration-test": "./run-all.sh"
   },
   "dependencies": {
     "@lib.cam/xslt-nailgun": "file:lib.cam-xslt-nailgun-current.tgz"
   },
   "devDependencies": {
-    "bats": "^1.1.0"
+    "bats": "^1.1.0",
+    "tap-xunit": "^2.4.1"
   }
 }
