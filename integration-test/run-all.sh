@@ -19,7 +19,10 @@ if [[ ${CI:-} = true ]]; then
   STATUS=$?
   set -e
 
-  node_modules/.bin/tap-xunit < test-reports/bats.tap > test-reports/bats.xml
+  # bats outputs test output as TAP comments; turn these comments into regular
+  # output so that it shows up in the xunit XML file and gets reported in
+  # pipelines.
+  sed -e 's/^# / /g' < test-reports/bats.tap | node_modules/.bin/tap-xunit > test-reports/bats.xml
   exit $STATUS
 else
   node_modules/.bin/bats integration-tests.bats
