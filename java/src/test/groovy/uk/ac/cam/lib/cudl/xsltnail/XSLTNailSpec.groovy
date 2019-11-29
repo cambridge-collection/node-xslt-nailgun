@@ -8,18 +8,18 @@ import org.xmlunit.builder.Input
 import spock.lang.Specification
 import spock.lang.Unroll
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
-
-import static io.vavr.API.Option
-
-import java.nio.charset.StandardCharsets
+import java.nio.file.attribute.FileTime
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
+import static io.vavr.API.Option
 import static org.xmlunit.matchers.CompareMatcher.isSimilarTo
 import static spock.util.matcher.HamcrestSupport.expect
 
@@ -192,6 +192,9 @@ class XSLTNailSpec extends Specification {
         }
         def xsltFile = File.createTempFile("xslt-nail-test_", "")
         xsltFile.write(String.format(XSLT_TEMPLATE, "<initial-version/>"))
+        // XSLT is only recompiled if the timestamp has changed, so use a really
+        // old timestamp to ensure it's updated when we rewrite the file
+        Files.setLastModifiedTime(xsltFile.toPath(), FileTime.from(0, TimeUnit.MILLISECONDS))
 
         def input = "<a/>"
         def op = new XSLTTransformOperation(xsltFile.toPath(), Option(null), Option(null))
@@ -238,6 +241,9 @@ class XSLTNailSpec extends Specification {
         }
         def xsltFile = File.createTempFile("xslt-nail-test_", "")
         xsltFile.write(String.format(XSLT_TEMPLATE, "<initial-version/>"))
+        // XSLT is only recompiled if the timestamp has changed, so use a really
+        // old timestamp to ensure it's updated when we rewrite the file
+        Files.setLastModifiedTime(xsltFile.toPath(), FileTime.from(0, TimeUnit.MILLISECONDS))
 
         def input = "<a/>"
         def op = new XSLTTransformOperation(xsltFile.toPath(), Option(null), Option(null))
