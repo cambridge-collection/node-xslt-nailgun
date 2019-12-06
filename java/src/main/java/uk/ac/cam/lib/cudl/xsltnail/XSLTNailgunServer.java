@@ -1,6 +1,7 @@
 package uk.ac.cam.lib.cudl.xsltnail;
 
 import static java.lang.String.format;
+import static uk.ac.cam.lib.cudl.xsltnail.Values.requireKey;
 
 import com.facebook.nailgun.*;
 import com.facebook.nailgun.builtins.NGStop;
@@ -8,6 +9,7 @@ import io.vavr.Predicates;
 import io.vavr.collection.HashMap;
 import io.vavr.collection.Map;
 import io.vavr.collection.Stream;
+import io.vavr.control.Option;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.logging.ConsoleHandler;
@@ -55,8 +57,7 @@ public final class XSLTNailgunServer {
 
   static void main(io.vavr.collection.Map<String, Object> args, ServerFactory serverFactory) {
     configureLogging(
-        args.get("--log-level")
-            .flatMap(Values::asString)
+        Values.ifString(requireKey(args, "--log-level").get())
             .map(
                 level -> {
                   try {
@@ -120,11 +121,10 @@ public final class XSLTNailgunServer {
   }
 
   private static NGListeningAddress getAddress(Map<String, Object> args) {
-    String address =
-        args.get("<address>").flatMap(Values::asString).getOrElseThrow(AssertionError::new);
+    String address = requireKey(args, "<address>").flatMap(Values::castToString).get();
     AddressType type =
-        args.get("--address-type")
-            .flatMap(Values::asString)
+        Option.of(requireKey(args, "--address-type").get())
+            .flatMap(Values::ifString)
             .map(
                 value -> {
                   if (value.toLowerCase().equals(value)) {

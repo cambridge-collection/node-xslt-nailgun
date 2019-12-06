@@ -3,13 +3,16 @@ package uk.ac.cam.lib.cudl.xsltnail;
 import static io.vavr.API.Map;
 import static uk.ac.cam.lib.cudl.xsltnail.XSLTNailArguments.Parsers.*;
 
+import io.vavr.API;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.List;
 import io.vavr.collection.Map;
+import io.vavr.collection.Set;
 import io.vavr.control.Either;
 import io.vavr.control.Option;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 class XSLTNailArguments {
@@ -170,13 +173,22 @@ class XSLTNailArguments {
 
   private static final Map<String, Object> DEFAULT_RESULT =
       Map(
-          "--", false,
-          "--help", false,
-          "--version", false,
-          "--system-identifier", null,
-          "transform", false,
-          "<xslt-file>", null,
-          "<xml-file>", null);
+          "--",
+          false,
+          "--help",
+          false,
+          "--version",
+          false,
+          "--system-identifier",
+          null,
+          "--parameter",
+          List.empty(),
+          "transform",
+          false,
+          "<xslt-file>",
+          null,
+          "<xml-file>",
+          null);
 
   private static class XSLTNailArgumentsParser {
     private XSLTNailArgumentsParser() {}
@@ -185,13 +197,17 @@ class XSLTNailArguments {
       return regex("^(?:|(?!--).+)$", key);
     }
 
+    public static final Set<String> MULTI_VALUED_OPTIONS = API.Set("--parameter");
+
     private static final Parser HELP_OPTION = firstOf(option("--help"), option("-h", "--help"));
     private static final Parser VERSION_OPTION = option("--version");
 
     private static final Parser SUBCOMMAND_TRANSFORM = constant("transform");
     private static final Parser ARG_SEPARATOR = constant("--");
     private static final Parser SYSTEM_ID_OPTION = optionWithValue("--system-identifier");
-    private static final Parser OPTIONS = opt(firstOf(SYSTEM_ID_OPTION, HELP_OPTION));
+    private static final Parser PARAMETER_OPTION = optionWithValue("--parameter");
+    private static final Parser OPTIONS =
+        times(firstOf(PARAMETER_OPTION, SYSTEM_ID_OPTION, HELP_OPTION), 0);
     private static final Parser XSLT_FILE = value("<xslt-file>");
     private static final Parser XML_FILE = value("<xml-file>");
     private static final Parser NOT_OPTLIKE_XSLT_FILE = unambiguousValue("<xslt-file>");
@@ -228,17 +244,38 @@ class XSLTNailArguments {
             str -> Either.left(Option.none()),
             result ->
                 result._2.isEmpty()
-                    ? mergeValues(result._1).mapLeft(Option::some)
+                    ? mergeValues(result._1, XSLTNailArgumentsParser.MULTI_VALUED_OPTIONS::contains)
+                        .mapLeft(Option::some)
                     : Either.left(Option.none()));
   }
 
   private static Either<String, Map<String, Object>> mergeValues(
-      List<Tuple2<String, Object>> values) {
+      List<Tuple2<String, Object>> values, Predicate<String> isMultiValued) {
     Map<String, Object> result = Map();
     for (Tuple2<String, Object> value : values) {
-      if (result.containsKey(value._1))
-        return Either.left(String.format("duplicate argument: %s", value._1));
-      result = result.put(value);
+      Tuple2<String, Object> mergedValue;
+      if (isMultiValued.test(value._1)) {
+        mergedValue =
+            result
+                .get(value._1)
+                .fold(
+                    () -> Tuple.of(value._1, List.of(value._2)),
+                    (obj) -> {
+                      if (!(obj instanceof List)) {
+                        throw new AssertionError("existing multi-valued item value is not a List");
+                      }
+                      @SuppressWarnings("unchecked")
+                      List<Object> multiValues = (List<Object>) obj;
+                      // Values are prepended while parsing, so prepending here results in
+                      // values being listed in their user-specified order.
+                      return Tuple.of(value._1, multiValues.prepend(value._2));
+                    });
+      } else {
+        if (result.containsKey(value._1))
+          return Either.left(String.format("duplicate argument: %s", value._1));
+        mergedValue = value;
+      }
+      result = result.put(mergedValue);
     }
     return Either.right(result.merge(DEFAULT_RESULT));
   }

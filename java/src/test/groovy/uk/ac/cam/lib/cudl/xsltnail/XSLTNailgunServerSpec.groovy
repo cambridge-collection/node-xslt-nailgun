@@ -9,9 +9,13 @@ import spock.lang.Specification
 import spock.lang.Unroll
 
 class XSLTNailgunServerSpec extends Specification {
+    private static final OPTIONAL_ARGS = HashMap.ofAll(["--address-type": null, "--log-level": null])
+
     NGServer server
     AliasManager aliasManager
     XSLTNailgunServer.ServerFactory serverFactory
+
+
 
     def setup() {
         aliasManager = new AliasManager()
@@ -40,7 +44,7 @@ class XSLTNailgunServerSpec extends Specification {
             // Treated as local, not IP
             [["<address>": "127.0.0.1:2048", "--address-type": "local"], new NGListeningAddress("127.0.0.1:2048")],
             [["<address>": "127.0.0.1:2048"], new NGListeningAddress(InetAddress.getByName("127.0.0.1"), 2048)]
-        ].collect { [HashMap.ofAll(it[0]), it[1]] }
+        ].collect { [HashMap.ofAll(it[0]).merge(OPTIONAL_ARGS), it[1]] }
     }
 
     static def isSameAddress(NGListeningAddress a, NGListeningAddress b) {

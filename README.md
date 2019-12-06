@@ -2,7 +2,7 @@
 
 A Node.js XSLT 3.0 library without Node.js native-code dependencies.
 
-XSLT execution is delegated to a [nailgun] server running in a separate JVM process. The mature [SAXON-HE] Java library is used to execute XSLT code. 
+XSLT execution is delegated to a [nailgun] server running in a separate JVM process. The mature [SAXON-HE] Java library is used to execute XSLT code.
 
 Despite using a separate Java process to run XSLT, `@lib.cam/xslt-nailgun` is fast because:
 - A single nailgun server is reused by repeated XSLT executions, so the JVM startup cost is only paid on the first transform.
@@ -40,14 +40,14 @@ As long as repeated calls to `execute()` are made within around a second of a pr
 let {using, XSLTExecutor} = require('@lib.cam/xslt-nailgun');
 
 // using() automatically calls close() on the executor when the inner function is finished
-let result = await using(XSLTExecutor.getInstance(), async (executor) => {   
+let result = await using(XSLTExecutor.getInstance(), async (executor) => {
     let xsltOutput1 = await executor.execute({
         xml: `<foo>a</foo>`,
         xsltPath: './my-transform.xsl'
     });
 
     let data = await someSlowOperation(xsltOutput1);
-    
+
     return await executor.execute({
         xml: data,
         xsltPath: './my-transform.xsl'
@@ -80,7 +80,17 @@ The top-level `execute()` is a convenience wrapper. It automatically acquires an
   * `options.xml`: `string` | `Buffer` — The input data for the XSLT to operate on.
   * `options.xmlPath`: `string` — The filesystem path to a file containing the input data for the XSLT to operate on.
   * `options.systemIdentifier`: `string` — Defines the base URI for the input document when the XSLT is executed.
+  * `options.parameters`: `{ [name: string]: string | string[] }` — Values for global parameters declared by the XSLT file. The value is an object where keys are property names and values are strings, or arrays of strings. The keys must be XML qnames in [Clark notation][clark]. e.g:
+    ```
+    execute({
+        // [...]
+        parameters: { foo: ['a', 'b'], '{http://example.com/myns}bar': 'abc' }
+    })
+    ```
+    The string values are converted to the declared type of the stylesheet's parameter in the same way that they would be if a string as passed to the datatype constructor (`xs:date('2019-12-25'`), or used in a cast expression (`'2019-12-25' cast as xs:date`). See the *Parameter Value Conversion* section for more details.
   * The top-level `execute()` function also accepts options from `XSLTExecutor.getInstance(options)`.
+
+[clark]: http://www.jclark.com/xml/xmlns.htm
 
 ### class `XSLTExecutor`
 
@@ -116,7 +126,7 @@ Repeated calls to `getInstance()` using the same option values will receive an e
 
 ```javascript
 let buffer = await using(XSLTExecutor.getInstance(), async (executor) => {
-    // The executor is not closed until we return or throw            
+    // The executor is not closed until we return or throw
     return executor.execute({/* ... */});
 });
 // The executor is now closed
@@ -128,6 +138,22 @@ Console.log(buffer.toString());
 ### interface `Closable`
 
 Any resource which can be cleaned up by invoking its `close()` method. `close()` may return undefined, or a `Promise` (which resolves to undefined) in order to close asynchronously.
+
+## Parameter Value Conversion
+
+As described in the documentation for the `'parameters'` option to `execute()`, parameter values are passed as strings. XPath data types are all sequences, so each parameter holds zero or more strings. These strings are supplied to the stylesheet as instances of `xs:untypedAtomic`. The XSLT evaluator converts them to the declared type of the `<xsl:param>` according to the [XPath's Function Conversion Rules][xpath-fcr][\[1\]][1].
+
+In practice, this results in an instance of the target type being [constructed from the string value][atomic-type-ctors]. e.g `xs:integer('42')`. See the [XPath spec on casting from strings][xpath-cast-from-string] for more details.
+
+**To find the string representation required by the various data types, see the *Lexical representation* section for the respective data type in the [XML Schema Data Types spec][xml-schema-data-types]**. For example, the string representation for `xs:date` is described [here][xs-date-lexical-repr].
+
+[1]: https://www.w3.org/TR/xslt-30/#priming-stylesheet
+[xpath-fcr]: https://www.w3.org/TR/xpath-30/#id-function-conversion-rules
+[atomic-type-ctors]: https://www.w3.org/TR/xpath-functions-31/#constructor-functions-for-xsd-types
+[xpath-cast-from-string]: https://www.w3.org/TR/xpath-functions-31/#casting-from-strings
+[xml-schema-data-types]: https://www.w3.org/TR/xmlschema-2/#built-in-datatypes
+[xs-date-lexical-repr]: https://www.w3.org/TR/xmlschema-2/#date-lexical-representation
+
 
 ## Goals
 

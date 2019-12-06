@@ -1,4 +1,6 @@
-import assert from 'assert';
+import {name} from 'xml-name-validator';
+
+import assert, {AssertionError} from 'assert';
 import BufferList from 'bl';
 import {ChildProcess, spawn} from 'child_process';
 import createDebug from 'debug';
@@ -43,6 +45,34 @@ export function getClasspath() {
     }
     const localPath = metadata['uk.ac.cam.lib.cudl.xslt-nailgun'].serverJarsPath;
     return path.resolve(require.resolve(packageJsonPath), '..', localPath, '*');
+}
+
+function parseClarkNameError(value: string, detailMsg: string): string {
+    return `invalid Clark-encoded qname ${util.inspect(value)}: ${detailMsg}`;
+}
+
+export function parseClarkName(value: string): {ns: string, id: string} {
+    let ns;
+    let id;
+    if(value.startsWith('{')) {
+        const nsEnd = value.indexOf('}');
+        if(nsEnd === -1) {
+            throw new Error(parseClarkNameError(value, 'no closing }'));
+        }
+        ns = value.substr(1, nsEnd - 1);
+        id = value.substr(nsEnd + 1);
+    }
+    else {
+        ns = '';
+        id = value;
+    }
+
+    if(!name(id).success) {
+        throw new Error(parseClarkNameError(value,
+            `local identifier part is not a valid XML name: ${util.inspect(id)}`));
+    }
+
+    return {ns, id};
 }
 
 export enum AddressType { local = 'local', network = 'network' }
@@ -693,6 +723,10 @@ const EXIT_STATUS_OK = 0;
 const EXIT_STATUS_INTERNAL_ERROR = 1;
 const EXIT_STATUS_USER_ERROR = 2;
 
+interface Parameters {
+    [name: string]: string | string[];
+}
+
 interface BaseExecuteOptions {
     /** The filesystem path to the XSLT file to execute. */
     xsltPath: string;
@@ -701,6 +735,26 @@ interface BaseExecuteOptions {
      * Defines the default base URI of the input document (it can be overridden by the contents of the document itself).
      */
     systemIdentifier?: string;
+
+    /**
+     * Values for the stylesheet's global parameters.
+     *
+     * The object keys are parameter names, which are XML qualified names encoded in Clark notation
+     * (`"{uri}local-name"`). Values are zero or more strings. The XSLT processor converts the string values to the
+     * stylesheet parameter's specified type (e.g. xs:integer, xs:date etc) using the standard type conversion rules the
+     * stylesheet.
+     *
+     * For example:
+     *
+     * ```
+     * {
+     *     foo: 'abc',
+     *     bar: [],
+     *     '{http://example.com/myns}local-name': ['a', 'b', 'c']
+     * }
+     * ```
+     */
+    parameters?: Parameters;
 }
 
 interface XMLViaValue {
@@ -737,6 +791,13 @@ export class XSLTExecutor implements Closable {
         let xmlPath: string[];
         const systemIdentifier =
             options.systemIdentifier === undefined ? [] : ['--system-identifier', options.systemIdentifier];
+        let parameters: string[];
+        try {
+            parameters = XSLTExecutor.encodeParameterOptions(options.parameters || {});
+        }
+        catch (e) {
+            throw new TraceError(`Failed to encode parameters: ${e.message}`, e);
+        }
         if(options.xmlPath === undefined && options.xml === undefined &&  options.systemIdentifier !== undefined) {
             stdin = '';
             xmlPath = [];
@@ -762,9 +823,24 @@ No input specified in options - at least one of xml, xmlPath, systemIdentifier m
         }
 
         return {
-            args: ['transform'].concat(systemIdentifier).concat(['--', options.xsltPath]).concat(xmlPath),
+            args: ['transform'].concat(systemIdentifier).concat(parameters)
+                .concat(['--', options.xsltPath]).concat(xmlPath),
             stdin,
         };
+    }
+
+    private static encodeParameterOptions(parameters: Parameters): string[] {
+        const options = [];
+        for(const clarkQname of Object.keys(parameters)) {
+            // Ensure a valid Clark qname is used
+            parseClarkName(clarkQname);
+
+            const values = parameters[clarkQname];
+            for(const value of typeof values === 'string' ? [values] : values) {
+                options.push(`--parameter=${clarkQname}=${value}`);
+            }
+        }
+        return options;
     }
 
     private readonly serverProcessRef: AutoCloserReference<JVMProcess>;

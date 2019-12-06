@@ -6,6 +6,7 @@ import {execute, ExecuteOptions, IPServerAddress, JVMProcess, timeout} from '../
 
 const testResourcesDir = path.resolve(__dirname, '../java/src/test/resources/uk/ac/cam/lib/cudl/xsltnail');
 const aXslPath = path.resolve(testResourcesDir, 'a.xsl');
+const paramsXslPath = path.resolve(testResourcesDir, 'params.xsl');
 const baseURIXslPath = path.resolve(testResourcesDir, 'base-uri.xsl');
 const aXmlPath = path.resolve(testResourcesDir, 'a.xml');
 const aXmlURI = new URL(aXmlPath, 'file://').toString();
@@ -46,6 +47,39 @@ test.each<[ExecuteOptions, string]>([
     await expect(result.toString()).toEqualXML(`\
 <?xml version="1.0" encoding="UTF-8"?>
 <result base-uri-of-input="${expectedBase}"><a/></result>`);
+});
+
+test.each<[ExecuteOptions, string]>([
+    [{xml: '<a/>', xsltPath: aXslPath, parameters: {thing: []}}, '<result><a/></result>'],
+    [{xml: '<a/>', xsltPath: aXslPath, parameters: {thing: 'foo'}}, '<result thing="foo"><a/></result>'],
+    [{xml: '<a/>', xsltPath: aXslPath, parameters: {thing: ['foo']}}, '<result thing="foo"><a/></result>'],
+    [{xml: '<a/>', xsltPath: aXslPath, parameters: {thing: ['foo', 'bar']}}, '<result thing="foo bar"><a/></result>'],
+    [{xml: '<a/>', xsltPath: paramsXslPath, parameters: {
+        'untyped-param': 'foo',
+        'default-param2': 'non-default value',
+        'numeric-param': '42',
+        'date-param': '2019-12-25',
+        'multi-string-param': ['ab', 'cd', 'ef'],
+        '{http://example.com/myparam}namespaced-param': 'bar',
+    }},
+        `\
+<result>
+    <param name="untyped-param" value="foo"/>
+    <param name="default-param1" value="default value"/>
+    <param name="default-param2" value="non-default value"/>
+    <param name="numeric-param" value="42 * 2 = 84"/>
+    <param name="date-param" year="2019" value="2019-12-25"/>
+    <param name="multi-string-param" count="3" value="ab, cd, ef"/>
+    <param name="myparam:namespaced-param" value="bar"/>
+</result>`,
+    ],
+])
+('execute() provides parameters to XSLT', async (options: ExecuteOptions, expected: string) => {
+    const result = await using(XSLTExecutor.getInstance(), async (executor) => {
+        return executor.execute(options);
+    });
+
+    await expect(result.toString()).toEqualXML(`<?xml version="1.0" encoding="UTF-8"?>${expected}`);
 });
 
 test('execute() transforms XML with XSLT (without async)', () => {

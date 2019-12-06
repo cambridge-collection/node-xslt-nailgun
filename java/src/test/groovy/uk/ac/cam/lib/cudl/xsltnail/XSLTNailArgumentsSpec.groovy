@@ -265,6 +265,7 @@ class XSLTNailArgumentsSpec extends Specification {
         "--help", false,
         "--version", false,
         "--system-identifier", null,
+        "--parameter", List.empty(),
         "transform", false,
         "<xslt-file>", null,
         "<xml-file>", null)
@@ -282,27 +283,54 @@ class XSLTNailArgumentsSpec extends Specification {
             // FIXME: Need to ensure --system-identifier or <xml-file> are provided
             [["transform", "foo", "bar"],
              ["--": false, "--help": false, "--version": false, "transform": true,
-              "--system-identifier": null, "<xslt-file>": "foo", "<xml-file>": "bar"]],
+              "--system-identifier": null, "<xslt-file>": "foo", "<xml-file>": "bar",
+              "--parameter": List.empty()]],
             [["transform", "--system-identifier", "abc", "foo", "bar"],
              ["--": false, "--help": false, "--version": false, "transform": true,
-              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar"]],
+              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar",
+              "--parameter": List.empty()]],
+            [["transform", "--system-identifier", "abc", "foo", "bar"],
+             ["--": false, "--help": false, "--version": false, "transform": true,
+              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar",
+              "--parameter": List.empty()]],
             [["transform", "--system-identifier=abc", "foo", "bar"],
              ["--": false, "--help": false, "--version": false, "transform": true,
-              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar"]],
+              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar",
+              "--parameter": List.empty()]],
             [["transform", "foo", "bar", "--system-identifier=abc"],
              ["--": false, "--help": false, "--version": false, "transform": true,
-              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar"]],
+              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar",
+              "--parameter": List.empty()]],
             [["transform", "foo", "--system-identifier=abc", "bar"],
              ["--": false, "--help": false, "--version": false, "transform": true,
-              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar"]],
+              "--system-identifier": "abc", "<xslt-file>": "foo", "<xml-file>": "bar",
+              "--parameter": List.empty()]],
+
+            // --parameter is multi-valued. Note that the value should be of the
+            // form name=value, but values are not parsed at this stage. Neither
+            // are duplicate parameters handled here.
+            [["transform", "foo", "bar", "--parameter", "foo"],
+             ["--": false, "--help": false, "--version": false, "transform": true,
+              "--system-identifier": null, "<xslt-file>": "foo", "<xml-file>": "bar",
+              "--parameter": List.of("foo")]],
+            [["transform", "foo", "bar", "--parameter", "foo", "--parameter=bar", "--parameter=baz123"],
+             ["--": false, "--help": false, "--version": false, "transform": true,
+              "--system-identifier": null, "<xslt-file>": "foo", "<xml-file>": "bar",
+              "--parameter": List.of("foo", "bar", "baz123")]],
+            [["transform", "foo", "bar", "--parameter", "foo", "--parameter=bar", "--parameter=baz=123", "--parameter", "baz=123"],
+             ["--": false, "--help": false, "--version": false, "transform": true,
+              "--system-identifier": null, "<xslt-file>": "foo", "<xml-file>": "bar",
+              "--parameter": List.of("foo", "bar", "baz=123", "baz=123")]],
 
             // Argument separator (--) prevents subsequent values being interpreted as options
             [["transform", "--system-identifier=abc", "--", "--foo", "--bar"],
              ["--": true, "--help": false, "--version": false, "transform": true,
-              "--system-identifier": "abc", "<xslt-file>": "--foo", "<xml-file>": "--bar"]],
+              "--system-identifier": "abc", "<xslt-file>": "--foo", "<xml-file>": "--bar",
+              "--parameter": List.empty()]],
             [["transform", "--", "./foo.xsl", "--system-identifier=abc"],
              ["--": true, "--help": false, "--version": false, "transform": true,
-              "--system-identifier": null, "<xslt-file>": "./foo.xsl", "<xml-file>": "--system-identifier=abc"]],
+              "--system-identifier": null, "<xslt-file>": "./foo.xsl", "<xml-file>": "--system-identifier=abc",
+              "--parameter": List.empty()]],
 
             [["--version"], PARSE_DEFAULTS.put("--version", true)],
             [["--foo", "--version"], null],
@@ -319,8 +347,6 @@ class XSLTNailArgumentsSpec extends Specification {
             // help with otherwise valid usage
             [["transform", "./foo", "--help"],
              PARSE_DEFAULTS.put("transform", true).put("<xslt-file>", "./foo").put("--help", true)],
-
-
         ].collect {
             Object _expected = it[1]
             def actualExpectation

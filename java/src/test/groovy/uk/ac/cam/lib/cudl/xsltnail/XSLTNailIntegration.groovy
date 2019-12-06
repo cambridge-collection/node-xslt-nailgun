@@ -57,7 +57,8 @@ class XSLTNailIntegration extends Specification {
         def xslFile = getResourceAsPath("a.xsl")
         Process txProc = [
             "python3", clientPath, "--nailgun-server", "localhost", "--nailgun-port", "${port}", "--",
-            "xslt", "transform", "--system-identifier", "file:///tmp/foo.xml", "--", xslFile, "-"].execute()
+            "xslt", "transform", "--system-identifier", "file:///tmp/foo.xml",
+            "--parameter", "thing=foo", "--parameter", "thing=bar", "--", xslFile, "-"].execute()
         def stdout = new ByteArrayOutputStream()
         def stderr = new ByteArrayOutputStream()
         txProc.consumeProcessOutputStream(stdout)
@@ -68,7 +69,7 @@ class XSLTNailIntegration extends Specification {
         then:
         assert stderr.toString("UTF-8") == ""
         assert txProc.exitValue() == 0
-        expect Input.fromByteArray(stdout.toByteArray()), isSimilarTo(Input.from("<result><a/></result>"))
+        expect Input.fromByteArray(stdout.toByteArray()), isSimilarTo(Input.from("<result thing=\"foo bar\"><a/></result>"))
 
         when:
         Process stopProc = [

@@ -1,5 +1,6 @@
 package uk.ac.cam.lib.cudl.xsltnail;
 
+import static io.vavr.API.*;
 import static java.util.concurrent.Executors.newFixedThreadPool;
 import static uk.ac.cam.lib.cudl.xsltnail.Constants.EXIT_STATUS_INTERNAL_ERROR;
 import static uk.ac.cam.lib.cudl.xsltnail.Constants.EXIT_STATUS_USER_ERROR;
@@ -13,6 +14,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
 import io.vavr.collection.Map;
+import io.vavr.collection.Multimap;
 import io.vavr.control.Either;
 import io.vavr.control.Option;
 import java.io.*;
@@ -29,10 +31,8 @@ import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 import net.sf.saxon.lib.Logger;
 import net.sf.saxon.lib.StandardErrorListener;
-import net.sf.saxon.s9api.Processor;
-import net.sf.saxon.s9api.SaxonApiException;
-import net.sf.saxon.s9api.Xslt30Transformer;
-import net.sf.saxon.s9api.XsltExecutable;
+import net.sf.saxon.s9api.*;
+import net.sf.saxon.value.UntypedAtomicValue;
 
 public class XSLTNail implements AutoCloseable {
   private static final java.util.logging.Logger LOG =
@@ -59,8 +59,12 @@ public class XSLTNail implements AutoCloseable {
           .mapLeft(XSLTNail::handleInvalidArgumentMessage)
           .flatMap(XSLTNail::handleHelpRequest)
           .flatMap(XSLTNail::handleVersion)
+          .flatMap(
+              args ->
+                  XSLTTransformOperation.fromParsedArguments(args)
+                      .toEither()
+                      .mapLeft(Throwable::getMessage))
           .mapLeft(msg -> Tuple.of(msg, EXIT_STATUS_INTERNAL_ERROR))
-          .map(XSLTTransformOperation::fromParsedArguments)
           .flatMap(op -> nail.transform(op, context.in, context.out))
           .orElseRun(
               unsuccessfulResult -> {
@@ -173,12 +177,23 @@ public class XSLTNail implements AutoCloseable {
         .flatMap(
             source -> {
               try {
+                tx.setStylesheetParameters(
+                    buildStylesheetParameters(operation.parameters).toJavaMap());
                 tx.transform(source, tx.newSerializer(new BufferedOutputStream(out)));
                 return Either.right(null);
               } catch (SaxonApiException e) {
                 return Either.left("Failed to execute transform: " + logger.getLoggedMessages());
               }
             });
+  }
+
+  private static Map<QName, XdmValue> buildStylesheetParameters(Multimap<QName, String> values) {
+    // Parameter values are sequences of 0 or more strings. They're provided to the transformer as
+    // xs:untypedAtomic values, which results in the transformer applying standard conversion rules
+    // to cast them to the actual types of parameters.
+    return values
+        .asMap()
+        .map((k, v) -> Tuple.of(k, XdmAtomicValue.makeSequence(v.map(UntypedAtomicValue::new))));
   }
 
   private static Either<String, Source> getSource(

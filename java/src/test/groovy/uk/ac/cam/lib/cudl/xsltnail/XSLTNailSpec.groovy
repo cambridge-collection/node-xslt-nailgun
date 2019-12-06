@@ -2,8 +2,11 @@ package uk.ac.cam.lib.cudl.xsltnail
 
 import com.facebook.nailgun.NGContext
 import com.facebook.nailgun.NGServer
+import io.vavr.collection.HashMultimap
+import io.vavr.collection.Multimap
 import io.vavr.control.Option
 import net.sf.saxon.s9api.Processor
+import net.sf.saxon.s9api.QName
 import org.xmlunit.builder.Input
 import spock.lang.Specification
 import spock.lang.Unroll
@@ -18,10 +21,12 @@ import java.time.temporal.ChronoUnit
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.function.BiFunction
 
-import static io.vavr.API.Option
+import static io.vavr.API.*
 import static org.xmlunit.matchers.CompareMatcher.isSimilarTo
 import static spock.util.matcher.HamcrestSupport.expect
+import static uk.ac.cam.lib.cudl.xsltnail.Constants.EXIT_STATUS_USER_ERROR
 
 class XSLTNailSpec extends Specification {
     static def path(String segment, String... segments) {
@@ -35,6 +40,34 @@ class XSLTNailSpec extends Specification {
     static def stream(String s) {
         return new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8))
     }
+
+    static Multimap<QName, String> parameters(Multimap<String, String> params) {
+        params.map((BiFunction<String, String, Tuple2<QName, String>>){ k, v -> Tuple(QName.fromClarkName(k), v)})
+    }
+
+    static def normaliseWhitespace(String s) {
+        s.replaceAll("\\s+", " ")
+    }
+
+    static def runParamTransform(Multimap<QName, String> params) {
+        def xsltPath = getResourceAsPath("params.xsl")
+        def input = "<a/>"
+        def op = new XSLTTransformOperation(xsltPath, Some(path("-")), None(), params)
+        def out = new ByteArrayOutputStream()
+        def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
+        return result.map { out.toString("utf-8") }
+    }
+
+    static def DEFAULT_PARAMS = HashMultimap.withSeq().of(
+        "untyped-param", "foo",
+        "default-param2", "non-default value",
+        "numeric-param", "42",
+        "date-param", "2019-12-25",
+        "multi-string-param", "ab",
+        "multi-string-param", "cd",
+        "multi-string-param", "ef",
+        "{http://example.com/myparam}namespaced-param", "bar",
+    )
 
     @Unroll
     def "transform() executes stylesheet with input from stdin when #desc"(desc, xmlPath, systemIdentifier) {
@@ -126,12 +159,65 @@ class XSLTNailSpec extends Specification {
         ]
     }
 
+    def "transform() makes parameters available to stylesheet"() {
+        given:
+        def params = parameters(DEFAULT_PARAMS)
+        def expected = """\
+<result>
+    <param name="untyped-param" value="foo"/>
+    <param name="default-param1" value="default value"/>
+    <param name="default-param2" value="non-default value"/>
+    <param name="numeric-param" value="42 * 2 = 84"/>
+    <param name="date-param" year="2019" value="2019-12-25"/>
+    <param name="multi-string-param" count="3" value="ab, cd, ef"/>
+    <param name="myparam:namespaced-param" value="bar"/>
+</result>
+"""
+
+        when:
+        def result = runParamTransform(params)
+
+        then:
+        result.isRight()
+        expect result.get(), isSimilarTo(expected).ignoreWhitespace()
+    }
+
+    def "transform() fails if required parameter is not specified"() {
+        given:
+        def params = parameters(DEFAULT_PARAMS.remove("date-param"))
+
+        when:
+        def result = runParamTransform(params)
+
+        then:
+        result.isLeft()
+        result.getLeft()._2 == EXIT_STATUS_USER_ERROR
+        def err = normaliseWhitespace(result.getLeft()._1)
+        err.startsWith("Failed to execute transform: Error evaluating")
+        err.contains("XTDE0700: A value must be supplied for parameter \$date-param because there is no default value for the required type")
+    }
+
+    def "transform() fails if a parameter value cannot be cast to the parameter type"() {
+        given:
+        def params = parameters(DEFAULT_PARAMS.remove("date-param").put("date-param", "foobar"))
+
+        when:
+        def result = runParamTransform(params)
+
+        then:
+        result.isLeft()
+        result.getLeft()._2 == EXIT_STATUS_USER_ERROR
+        def err = normaliseWhitespace(result.getLeft()._1)
+        err.startsWith("Failed to execute transform: Error evaluating")
+        err.contains("FORG0001: Invalid date \"foobar\" (Non-numeric year component)")
+    }
+
     def "transform() returns error message on invalid input data"() {
         given:
         def input = "<a>..."  // invalid XML
 
         def xsltPath = getResourceAsPath("a.xsl")
-        def op = new XSLTTransformOperation(xsltPath, Option(null), Option(null))
+        def op = new XSLTTransformOperation(xsltPath, Option(null), Option(null),)
         def out = new ByteArrayOutputStream()
 
         when:

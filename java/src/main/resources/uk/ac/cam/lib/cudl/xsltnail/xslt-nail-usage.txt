@@ -15,6 +15,13 @@ Options:
         The URI of the XML input - e.g. a file:// URI identifying the location
         of the XML file. If <xml-file> is specified, this defaults to the URL
         of the file.
+    --parameter <name=value>
+        Set a stylesheet global parameter value. The value is of the form
+        "{uri}name=value". This option can be repeated to set multiple separate
+        parameters, or to provide multiple values for the same parameter. Values
+        are strings, which are converted to the parameter's declared type using
+        the standard type conversion rules for the XSLT stylesheet being
+        executed.
     -h, --help  Show this information
     --version   Show the version
 
