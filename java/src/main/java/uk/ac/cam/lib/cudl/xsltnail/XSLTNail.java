@@ -1,6 +1,5 @@
 package uk.ac.cam.lib.cudl.xsltnail;
 
-import static io.vavr.API.*;
 import static java.util.concurrent.Executors.newFixedThreadPool;
 import static uk.ac.cam.lib.cudl.xsltnail.Constants.EXIT_STATUS_INTERNAL_ERROR;
 import static uk.ac.cam.lib.cudl.xsltnail.Constants.EXIT_STATUS_USER_ERROR;
@@ -29,8 +28,6 @@ import java.util.concurrent.*;
 import javax.annotation.Nonnull;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
-import net.sf.saxon.lib.Logger;
-import net.sf.saxon.lib.StandardErrorListener;
 import net.sf.saxon.s9api.*;
 import net.sf.saxon.value.UntypedAtomicValue;
 
@@ -123,18 +120,6 @@ public class XSLTNail implements AutoCloseable {
             .buildAsync(xsltLoader);
   }
 
-  private static void setLogger(Xslt30Transformer transformer, Logger logger) {
-    StandardErrorListener errorListener =
-        Optional.of(transformer.getErrorListener())
-            .map(el -> el instanceof StandardErrorListener ? (StandardErrorListener) el : null)
-            .orElseThrow(
-                () ->
-                    new AssertionError(
-                        "Xslt30Transformer's error listener is not a StandardErrorListener"));
-
-    errorListener.setLogger(logger);
-  }
-
   public Either<Tuple2<String, Integer>, Void> transform(
       @Nonnull XSLTTransformOperation operation,
       @Nonnull InputStream in,
@@ -170,8 +155,7 @@ public class XSLTNail implements AutoCloseable {
       InputStream in,
       OutputStream out) {
     Xslt30Transformer tx = executable.load30();
-    MemoryLogger logger = MemoryLogger.newInstance();
-    setLogger(tx, logger);
+    MemoryLogger logger = ErrorListeners.assignThreadSafeErrorListener(tx::setErrorListener);
 
     return getSource(operation, in)
         .flatMap(

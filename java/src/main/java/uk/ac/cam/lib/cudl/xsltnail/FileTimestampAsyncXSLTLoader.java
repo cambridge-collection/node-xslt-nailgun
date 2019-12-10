@@ -8,12 +8,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import javax.annotation.Nonnull;
 import javax.xml.transform.stream.StreamSource;
-import net.sf.saxon.lib.StandardErrorListener;
 import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.XsltCompiler;
@@ -34,19 +32,8 @@ class FileTimestampAsyncXSLTLoader
         ThreadLocal.withInitial(
             () -> {
               XsltCompiler c = this.processor.newXsltCompiler();
-              StandardErrorListener errorListener =
-                  Optional.of(c.getErrorListener())
-                      .map(
-                          el ->
-                              el instanceof StandardErrorListener
-                                  ? (StandardErrorListener) el
-                                  : null)
-                      .orElseThrow(
-                          () ->
-                              new AssertionError(
-                                  "XsltCompiler's ErrorListener is not a StandardErrorListener"));
-              MemoryLogger logger = MemoryLogger.newInstance();
-              errorListener.setLogger(logger);
+              MemoryLogger logger =
+                  ErrorListeners.assignThreadSafeErrorListener(c::setErrorListener);
               this.logger.set(logger);
               return c;
             });
