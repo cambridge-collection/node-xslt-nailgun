@@ -1,10 +1,16 @@
 # `@lib.cam/xslt-nailgun` Changelog
 
+# 0.1.0
+
+* Support specifying XSLT global parameter values.
+* Fix truncated/incorrect error output when concurrent errors occurred
+* Fix intermittent test failures
+
 # 0.0.0-beta.4
 
 - Change `execute()` signature to accept options object instead of positional arguments
 - Keep nailgun server process alive for a short period after its last reference is dropped. This will make it easier to avoid JVM startups when using unrelated codepaths are executing transforms in quick succession.
-- The [`debug`](https://www.npmjs.com/package/debug) package is used to log information on inner workings. To enable, use the environment variable `DEBUG=@lib.cam/xslt-nailgun:*` when running node.    
+- The [`debug`](https://www.npmjs.com/package/debug) package is used to log information on inner workings. To enable, use the environment variable `DEBUG=@lib.cam/xslt-nailgun:*` when running node.
 
 # 0.0.0-beta.3
 
