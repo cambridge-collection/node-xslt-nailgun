@@ -202,7 +202,7 @@ interface KeepAliveStrategy<T extends Closable> {
 abstract class BaseKeepAliveStrategy<T extends Closable = Closable> implements KeepAliveStrategy<T>{
     public readonly hooks = new KeepAliveStrategyHooks<T>();
     protected _isAlive: boolean;
-    private autoCloserHooks: DefaultAutoCloserKeepAliveHooks<T>;
+    private autoCloserHooks: DefaultAutoCloserKeepAliveHooks<T> | undefined;
 
     protected constructor(isAliveByDefault: boolean) {
         this._isAlive = isAliveByDefault;
@@ -225,14 +225,14 @@ abstract class BaseKeepAliveStrategy<T extends Closable = Closable> implements K
     protected abstract onRefClosed(ref: AutoCloserReference<T>): Promise<void>;
 }
 
-export class ReferenceCountKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
-    private readonly refs: Set<AutoCloserReference<Closable>> = new Set();
+export class ReferenceCountKeepAliveStrategy<T extends Closable = Closable> extends BaseKeepAliveStrategy<T> {
+    private readonly refs: Set<AutoCloserReference<T>> = new Set();
 
     constructor() {
         super(true);
     }
 
-    protected async onRefClosed(ref: AutoCloserReference<Closable>): Promise<void> {
+    protected async onRefClosed(ref: AutoCloserReference<T>): Promise<void> {
         this.refs.delete(ref);
         if(this.isAlive() && this.refs.size === 0) {
             this._isAlive = false;
@@ -240,7 +240,7 @@ export class ReferenceCountKeepAliveStrategy extends BaseKeepAliveStrategy<Closa
         }
     }
 
-    protected onRefOpened(ref: AutoCloserReference<Closable>): void {
+    protected onRefOpened(ref: AutoCloserReference<T>): void {
         this.refs.add(ref);
         if(!this.isAlive() && this.refs.size > 0) {
             this._isAlive = true;
@@ -248,7 +248,7 @@ export class ReferenceCountKeepAliveStrategy extends BaseKeepAliveStrategy<Closa
     }
 }
 
-export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
+export class TimeoutKeepAliveStrategy<T extends Closable = Closable> extends BaseKeepAliveStrategy<T> {
     private openRefCount: number = 0;
     private timer?: Timeout;
     private timeout: number;
@@ -256,6 +256,7 @@ export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
 
     public constructor(timeout: number) {
         super(true);
+        this.timeout = 0;
         this.updateTimeout(timeout);
         this.beforeExitCallback = this.onBeforeExit.bind(this);
     }
@@ -268,7 +269,7 @@ export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
         this.timeout = timeout;
     }
 
-    protected async onRefClosed(ref: AutoCloserReference<Closable>): Promise<void> {
+    protected async onRefClosed(ref: AutoCloserReference<T>): Promise<void> {
         assert(this.openRefCount > 0);
         this.openRefCount--;
 
@@ -278,7 +279,7 @@ export class TimeoutKeepAliveStrategy extends BaseKeepAliveStrategy<Closable> {
         }
     }
 
-    protected onRefOpened(ref: AutoCloserReference<Closable>): void {
+    protected onRefOpened(ref: AutoCloserReference<T>): void {
         if(this.cancelTimeout()) {
             DEBUG.keepAliveTimeout('cancelled timeout because a new reference was created');
         }
@@ -674,7 +675,7 @@ function getServerProcessReference(options: StrictCreateOptions): AutoCloserRefe
     if(procCloser === undefined || procCloser.isClosed()) {
         const keepAliveStrategies: Array<KeepAliveStrategy<JVMProcess>> = [new ReferenceCountKeepAliveStrategy()];
 
-        let timeoutKeepAlive: TimeoutKeepAliveStrategy | null = null;
+        let timeoutKeepAlive: TimeoutKeepAliveStrategy<JVMProcess> | null = null;
         if(options.jvmKeepAliveTimeout !== 0) {
             timeoutKeepAlive = new TimeoutKeepAliveStrategy(options.jvmKeepAliveTimeout || DEFAULT_JVM_TIMEOUT_INITIAL);
             keepAliveStrategies.push(timeoutKeepAlive);
