@@ -1,12 +1,8 @@
 {
   "compilerOptions": {
-    "declaration": true,
-    "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
+    "declaration": true,
     "esModuleInterop": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "noImplicitAny": true,
     "outDir": "build/dist-root/lib",
     "paths": {
       "*": [
@@ -14,16 +10,17 @@
         "src/types/*"
       ]
     },
-    "rootDirs": ["src", "lib"],
     "resolveJsonModule": true,
+    "rootDirs": [
+      "src",
+      "lib"
+    ],
     "sourceMap": true,
-    "sourceRoot": "../src",
-    "strictNullChecks": true,
-    "target": "es2017",
-    "lib": ["es2017"]
+    "sourceRoot": "../src"
   },
+  "extends": "./node_modules/gts/tsconfig-google.json",
   "include": [
-    "src/**/*",
-    "test/**/*"
+    "src/**/*.ts",
+    "test/**/*.ts"
   ]
 }
