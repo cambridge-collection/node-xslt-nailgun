@@ -53,13 +53,17 @@ normalise-permissions:
 # local and CI environments, breaking reproducibility.
 	find build -type f -exec chmod u=rw,g=r,o=r {} +
 
-pack: ensure-clean-checkout compile-typescript build/dist-root \
+pack: lint ensure-clean-checkout compile-typescript build/dist-root \
 build/dist-root/lib/vendor build/dist-root/jars build/dist-root/src \
 build/dist-root/package.json build/dist-root/README.md normalise-permissions
 	cd build && npm pack ./dist-root
 
 install:
 	npm ci
+
+lint: install
+	npm run check
+	npm run lint
 
 clean: clean-build clean-java
 
@@ -69,4 +73,4 @@ clean-java:
 clean-build:
 	rm -rf build
 
-.PHONY: clean clean-java clean-build compile-typescript compile-java ensure-clean-checkout normalise-permissions
+.PHONY: lint install clean clean-java clean-build compile-typescript compile-java ensure-clean-checkout normalise-permissions
