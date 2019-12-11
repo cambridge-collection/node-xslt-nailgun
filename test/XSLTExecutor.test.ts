@@ -16,6 +16,12 @@ function nextProcessID() {
 }
 nextProcessID.seq = 0;
 
+function assignReadonlyProperty<T extends object, K extends keyof T, V extends T[K]>(obj: T, key: K, value: V): void {
+    type WriteableT = { [P in keyof T]: V };
+    const writableObj: WriteableT = obj as WriteableT;
+    writableObj[key] = value;
+}
+
 test.each<[string, ExecuteOptions]>([
     ['from string value', {xml: '<a/>', xsltPath: aXslPath}],
     ['from Buffer value', {xml: Buffer.from('<a/>'), xsltPath: aXslPath}],
@@ -135,11 +141,11 @@ test('execute() cannot be invoked after executor is closed', async () => {
 
 test('execute() rejects with InternalError when unable to connect to the nailgun server', async () => {
     const result = using(XSLTExecutor.getInstance({jvmProcessID: nextProcessID()}), async executor => {
-        const serverProcess: JVMProcess = await (executor as any).serverProcessRef.resource;
+        const serverProcess: JVMProcess = await executor['serverProcessRef'].resource;
 
         // Report the server's listen address incorrectly so that connecting fails
-        (serverProcess as any).serverStarted =
-            serverProcess.serverStarted.then(() => new IPServerAddress('127.0.0.1', 1));
+        assignReadonlyProperty(serverProcess, 'serverStarted',
+            serverProcess.serverStarted.then(() => new IPServerAddress('127.0.0.1', 1)));
 
         return executor.execute({xml: '<a/>', xsltPath: aXslPath});
     });
@@ -150,7 +156,7 @@ test('execute() rejects with InternalError when unable to connect to the nailgun
 
 test('execute() rejects with InternalError when nailgun server closes before execution is complete', async () => {
     const result = using(XSLTExecutor.getInstance({jvmProcessID: nextProcessID()}), async executor => {
-        const serverProcess: JVMProcess = await (executor as any).serverProcessRef.resource;
+        const serverProcess: JVMProcess = await executor['serverProcessRef'].resource;
         await serverProcess.serverStarted;
         const _result = executor.execute({xml: '<a/>', xsltPath: path.resolve(testResourcesDir, 'infinite-loop.xsl')});
         _result.catch(() => undefined); // prevent an UnhandledPromiseRejectionWarning - we handle errors later...
@@ -172,7 +178,7 @@ Failed to execute transform: java.lang.InterruptedException`;
 
 test('concurrent execute()', async () => {
     const count = 100;
-    const executions = Array(count).fill(null).map(async (val, i) => {
+    const executions = new Array(count).fill(null).map(async (val, i) => {
         const buffer = await execute(
             {xml: `<foo n="${i}">hi</foo>`, xsltPath: aXslPath});
         return buffer.toString();
@@ -201,7 +207,7 @@ async function runTransform(keepAliveTimeout: number): Promise<number> {
 }
 
 async function getNailgunServerPID(executor: XSLTExecutor): Promise<number> {
-    return (await (executor as any).serverProcessRef.resource).process.pid;
+    return (await executor['serverProcessRef'].resource)['process'].pid;
 }
 
 test('executor reuses nailgun server when within an un-elapsed jvmKeepAliveTimeout', async () => {

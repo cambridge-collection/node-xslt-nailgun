@@ -57,7 +57,7 @@ test('using() closes resource if user function throws error', async () => {
 });
 
 test('using() rejects with error from resource promise if it rejects', async () => {
-    const resource: Promise<any> = Promise.reject(new Error('failed to create resource'));
+    const resource: Promise<Closable> = Promise.reject(new Error('failed to create resource'));
 
     await expect(using(resource, async r => {
         await r;
@@ -66,7 +66,7 @@ test('using() rejects with error from resource promise if it rejects', async () 
 });
 
 test('usingPromise() rejects with error from user function if it and resource promise both fail', async () => {
-    const resource: Promise<any> = Promise.reject(new Error('failed to create resource'));
+    const resource: Promise<Closable> = Promise.reject(new Error('failed to create resource'));
 
     await expect(usingPromise(resource, async r => {
         throw new Error('failed to use resource');
@@ -74,7 +74,7 @@ test('usingPromise() rejects with error from user function if it and resource pr
 });
 
 test('using() rejects with error from resource promise if rejects', async () => {
-    const resource: Promise<any> = Promise.reject(new Error('failed to create resource'));
+    const resource: Promise<Closable> = Promise.reject(new Error('failed to create resource'));
 
     await expect(using(resource, async r => {
         throw new Error('failed to use resource');

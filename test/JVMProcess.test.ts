@@ -89,10 +89,10 @@ test('child process streams are no longer open after startup', async () => {
     }), async proc => {
         await proc.serverStarted;
 
-        const serverProcess = (proc as any).process as ChildProcess;
+        const serverProcess = proc['process'];
         expect(serverProcess.stdin).toBe(null);
-        expect((serverProcess.stdout as any).destroyed).toBe(true);
-        expect((serverProcess.stderr as any).destroyed).toBe(true);
+        expect(serverProcess.stdout?.['destroyed']).toBe(true);
+        expect(serverProcess.stderr?.['destroyed']).toBe(true);
     });
 });
 
@@ -105,8 +105,8 @@ test('child process stderr stays open if debug is enabled', async () => {
     }), async proc => {
         await proc.serverStarted;
 
-        const serverProcess = (proc as any).process as ChildProcess;
-        expect((serverProcess.stderr as any).destroyed).toBe(false);
+        const serverProcess = proc['process'];
+        expect(serverProcess.stderr?.['destroyed']).toBe(false);
     });
 });
 
@@ -119,7 +119,7 @@ test('child process is killed on process exit', async () => {
         classpath: getClasspath(),
         startupTimeout: 2000,
     }), async proc => {
-        const exitHandler = (proc as any).boundOnProcessExit as () => void;
+        const exitHandler = proc['boundOnProcessExit'];
         expect(typeof exitHandler).toBe('function');
 
         // process.on('exit' ...) is called with exitHandler
@@ -128,7 +128,7 @@ test('child process is killed on process exit', async () => {
         expect(processOn.mock.calls[0][1]).toBe(exitHandler);
 
         // The child process is killed when exitHandler() is called
-        const serverProcess = (proc as any).process as ChildProcess;
+        const serverProcess = proc['process'];
         expect(serverProcess.killed).toBeFalsy();
         exitHandler();
         expect(serverProcess.killed).toBeTruthy();

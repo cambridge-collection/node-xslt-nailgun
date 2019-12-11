@@ -124,7 +124,7 @@ export class LocalServerAddress {
 export class IPServerAddress {
     public static fromListenAddress(listenAddress: string) {
         const [host, portString] = listenAddress.split(':', 2);
-        const port = parseInt(portString, 10);
+        const port = Number(portString);
 
         if(isNaN(port))
             throw new Error(`Invalid listenAddress: ${listenAddress}`);
@@ -523,7 +523,7 @@ ${this.getCurrentStderr()}`);
                         reject(new Error(`Failed to parse port from NGServer startup message: ${line}`));
                         return;
                     }
-                    address = new IPServerAddress(this.address.host, parseInt(match[1], 10));
+                    address = new IPServerAddress(this.address.host, Number(match[1]));
                 }
                 else {
                     address = this.address;
@@ -814,7 +814,7 @@ export class XSLTExecutor implements Closable {
             xmlPath = ['-'];
         }
         else {
-            const anyOpts = options as any;
+            const anyOpts = options as Partial<ExecuteOptions>;
             // TypeScript will prevent this, but javascript won't.
             if(anyOpts.xml !== undefined && anyOpts.xmlPath !== undefined) {
                 throw new Error('Options xml and xmlPath cannot be specified together');
@@ -953,7 +953,7 @@ function errorMessageOrFallback(error: string, fallback: string, template?: stri
     return fallback;
 }
 
-function abortOnError<T>(promise: Promise<T>, errorProducer: Promise<any>): Promise<T> {
+function abortOnError<T>(promise: Promise<T>, errorProducer: Promise<unknown>): Promise<T> {
     // The second promise can only reject, so the returned promise can be cast
     // to T as it can only ever resolve to T.
     return Promise.race([
