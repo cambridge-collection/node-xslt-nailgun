@@ -1,4 +1,5 @@
 export {
+    hooks,
     execute,
     XSLTExecutor,
     XSLTNailgunError,

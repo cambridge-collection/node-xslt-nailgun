@@ -172,7 +172,15 @@ export interface AutoCloserReference<T extends Closable> extends Closable {
 }
 
 class AutoCloserHooks {
-    public readonly asyncCloseError = new SyncBailHook<any>(['error']);
+    /**
+     * Triggered when the calling close() on the AutoCloser's resource fails, but there's no direct caller to propagate
+     * the error to. For example, when the close() was initiated via a timer.
+     */
+    public readonly asyncCloseError = new SyncBailHook<Error>(['error']);
+    /** Triggered when the AutoCloser has marked itself as closed, but before it closes its resource. */
+    public readonly closing = new SyncHook();
+    /** Triggered once the AutoCloser has closed its resource. */
+    public readonly closed = new SyncHook();
 }
 
 interface AutoCloser<T extends Closable> {
@@ -183,7 +191,7 @@ interface AutoCloser<T extends Closable> {
 
 class KeepAliveStrategyHooks<T extends Closable> {
     public readonly dead = new AsyncParallelHook();
-    public readonly asyncCloseError = new SyncBailHook<any>(['error']);
+    public readonly asyncCloseError = new SyncBailHook<Error>(['error']);
 
     constructor() {
         // Throw errors by default if nobody taps asyncCloseError
@@ -324,12 +332,13 @@ export class TimeoutKeepAliveStrategy<T extends Closable = Closable> extends Bas
 
         DEBUG.keepAliveTimeout('keep-alive timeout expired');
         this._isAlive = false;
-        this.hooks.dead.callAsync((err: any) => {
+        this.hooks.dead.callAsync((err: unknown) => {
             // If closing fails we have no direct caller to report the error to, so we pass it to our async error hook
             // for handling.
             if(err) {
                 DEBUG.keepAliveTimeout('got an async close error after reporting death; error=%O', err);
-                this.hooks.asyncCloseError.call(err);
+                const error = err instanceof Error ? err : typeof err === 'string' ? new Error(err) : new Error(util.inspect(err));
+                this.hooks.asyncCloseError.call(error);
             }
         });
     }
@@ -413,7 +422,9 @@ export class DefaultAutoCloser<T extends Closable> implements AutoCloser<T> {
         if(this.keepAliveStrategies.every(keepAlive => !keepAlive.isAlive())) {
             DEBUG.defaultAutoCloser('all %d keep-alive strategies are dead, closing', this.keepAliveStrategies.length);
             this._isClosed = true;
+            this.hooks.closing.call();
             await (await this.resource).close();
+            this.hooks.closed.call();
         }
         else {
             if(DEBUG.defaultAutoCloser.enabled) {
@@ -647,7 +658,7 @@ class XSLTNailgunHooks {
      * Triggered if a JVM process fails to shutdown when being terminated outside an execute() call, e.g. being
      * terminated as the result of a keep alive timeout expiring after an execute() call has completed.
      */
-    public readonly asyncJVMShutdownError = new SyncBailHook<any, StrictCreateOptions>(['error', 'options']);
+    public readonly asyncJVMShutdownError = new SyncBailHook<Error, StrictCreateOptions>(['error', 'options']);
 
     constructor() {
         const options: Partial<Tap> = {name: 'XSLTNailgunHooks', stage: Number.MAX_SAFE_INTEGER};
@@ -660,6 +671,7 @@ To handle this error, tap require('xslt-nailgun').hooks.asyncJVMShutdownError`, 
         });
     }
 }
+
 export const hooks = new XSLTNailgunHooks();
 
 const DEFAULT_JVM_TIMEOUT_INITIAL = 1000;
@@ -695,6 +707,22 @@ function getServerProcessReference(options: StrictCreateOptions): AutoCloserRefe
         const jvmProcess = JVMProcess.listeningOnRandomPort({...options, classpath: getClasspath()});
         const autoCloser = new DefaultAutoCloser<JVMProcess>(jvmProcess, keepAliveStrategies);
         serverProcesses.set(optionsKey, autoCloser);
+
+        // Clean up global references to closed auto-closers to avoid leaking
+        const cleanup = () => {
+            if(serverProcesses.get(optionsKey) === autoCloser) {
+                serverProcesses.delete(optionsKey);
+            }
+        };
+        autoCloser.hooks.closing.tap('getServerProcessReference', cleanup);
+        // Handle errors from close() without direct callers (e.g. from timers) using our global async error hook
+        autoCloser.hooks.asyncCloseError.tap('getServerProcessReference', (err) => {
+            // Ensure we don't hold onto auto-closer references if closing fails asynchronously. This shouldn't
+            // (currently) be required, as the above closing hook will be triggered before the resource's close() method
+            // is actually called.
+            cleanup();
+            hooks.asyncJVMShutdownError.call(err, options);
+        });
 
         // If no timeout is specified, we automatically set the timeout based on the time it takes to start the nailgun
         // server.
