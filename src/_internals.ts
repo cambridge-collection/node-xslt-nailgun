@@ -610,17 +610,28 @@ export class JVMProcess implements Closable {
 
     this.serverStarted = new Promise((resolve, reject) => {
       let starting = true;
+      let timedOut = false;
       const timeoutTimer = setTimeout(() => {
         if (!starting) {
           return;
         }
-        reject(
-          promiseFinally(this.close(), () => {
-            throw new InternalError(`\
-xslt-nailgun server process failed to start: ${startupTimeout}ms startup timeout expired; stderr:
-${this.getCurrentStderr()}`);
+        timedOut = true;
+        this.close()
+          .then(() => {
+            reject(
+              new InternalError(`\
+xslt-nailgun server process failed to start: ${startupTimeout}ms startup timeout expired; stderr: \
+${util.inspect(this.getCurrentStderr())}`)
+            );
           })
-        );
+          .catch(reason => {
+            reject(
+              new InternalError(`\
+xslt-nailgun server process failed to start: Error closing JVM process after ${startupTimeout}ms startup timeout \
+expired; close error: ${util.inspect(reason)}; stderr: \
+${util.inspect(this.getCurrentStderr())}`)
+            );
+          });
       }, startupTimeout);
 
       const cancelStartupTimeout = () => {
@@ -664,31 +675,40 @@ ${this.getCurrentStderr()}`);
         // terminate.
         stdout.destroy();
         cancelStartupTimeout();
-        resolve(address);
+        if (!timedOut) {
+          resolve(address);
+        }
       });
 
       this.process.on('exit', (code, signal) => {
         const exit = JVMProcess.createExitObject(code, signal);
         cancelStartupTimeout();
-        reject(
-          new InternalError(`\
+
+        // The process gets closed if the startup expires. We can ignore this as
+        // the timeout is what should be reported.
+        if (!timedOut) {
+          reject(
+            new InternalError(`\
 xslt-nailgun server process failed to start: process unexpectedly terminated with ${util.inspect(
-            exit
-          )}; stderr:
+              exit
+            )}; stderr:
 ${this.getCurrentStderr()}`)
-        );
+          );
+        }
       });
 
       this.process.on('error', error => {
         cancelStartupTimeout();
-        reject(
-          new InternalError(
-            `\
+        const msg = `\
 xslt-nailgun server process failed to start: stderr:
-${this.getCurrentStderr()}`,
-            error
-          )
-        );
+${this.getCurrentStderr()}`;
+        if (!timedOut) {
+          reject(new InternalError(msg, error));
+        } else {
+          DEBUG.jvmProcess(
+            `xslt-nailgun server process emitted an error after the startupTimeout expired: ${error}`
+          );
+        }
       });
     });
 

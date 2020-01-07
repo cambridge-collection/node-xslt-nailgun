@@ -32,6 +32,10 @@ test.each<[Partial<JVMProcessOptions>, string]>([
     { listenAddress: '/dev/null' },
     'xslt-nailgun server process failed to start: process unexpectedly terminated with { code: 1 }',
   ],
+  [
+    { startupTimeout: 1 },
+    `xslt-nailgun server process failed to start: 1ms startup timeout expired; stderr: ''`,
+  ],
 ])(
   '[%#] JVMProcess serverStarted Promise rejects when process fails to start',
   async (options, reason) => {
