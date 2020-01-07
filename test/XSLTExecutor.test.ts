@@ -230,6 +230,23 @@ test('execute() rejects with InternalError when unable to connect to the nailgun
   );
 });
 
+test(`execute() rejects with InternalError when the nailgun server doesn't start within the timeout`, async () => {
+  const result = using(
+    XSLTExecutor.getInstance({
+      jvmProcessID: nextProcessID(),
+      jvmStartupTimeout: 1,
+    }),
+    async executor => {
+      return executor.execute({ xml: '<a/>', xsltPath: aXslPath });
+    }
+  );
+
+  await expect(result).rejects.toThrow(InternalError);
+  await expect(result).rejects.toThrow(
+    `xslt-nailgun server process failed to start: 1ms startup timeout expired; stderr: ''`
+  );
+});
+
 test('execute() rejects with InternalError when nailgun server closes before execution is complete', async () => {
   const result = using(
     XSLTExecutor.getInstance({ jvmProcessID: nextProcessID() }),

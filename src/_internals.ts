@@ -111,6 +111,12 @@ export interface CreateOptions {
    * will be determined automatically.
    */
   jvmKeepAliveTimeout?: number | null;
+
+  /**
+   * The number of milliseconds to give the xslt-nailgun server to start up
+   * before killing it and failing the XSLT execution.
+   */
+  jvmStartupTimeout?: number;
 }
 type StrictCreateOptions = Required<CreateOptions>;
 
@@ -161,10 +167,9 @@ export class IPServerAddress {
 }
 
 export interface JVMProcessOptions
-  extends Omit<Required<CreateOptions>, 'jvmKeepAliveTimeout' | 'jvmProcessID'>,
+  extends Omit<StrictCreateOptions, 'jvmKeepAliveTimeout' | 'jvmProcessID'>,
     ServerAddress {
   classpath: string;
-  startupTimeout?: number;
   /**
    * Whether to enable debugging functionality. Default: false.
    * Presently this means that stderr is monitored for errors until the process's close() method is called. Normally
@@ -184,6 +189,10 @@ function populateDefaults(options: CreateOptions): StrictCreateOptions {
       options.jvmKeepAliveTimeout === undefined
         ? null
         : options.jvmKeepAliveTimeout,
+    jvmStartupTimeout:
+      options.jvmStartupTimeout === undefined
+        ? 2000
+        : options.jvmStartupTimeout,
   };
 }
 
@@ -546,8 +555,7 @@ export class JVMProcess implements Closable {
   private closeCalled = false;
 
   constructor(options: JVMProcessOptions) {
-    const startupTimeout =
-      options.startupTimeout === undefined ? 2000 : options.startupTimeout;
+    const startupTimeout = options.jvmStartupTimeout;
     this.options = { ...options };
     this.debug = !!options.debug;
     this.address = parseServerAddress(options);

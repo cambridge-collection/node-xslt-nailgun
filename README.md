@@ -108,10 +108,11 @@ Repeated calls to `getInstance()` using the same option values will receive an e
 
 #### Arguments
 
-* `options` — An optional object with the following properties:
+* `options` — An optional object with zero or more of the following properties:
   * `options.jvmExecutable`: `string` — The command (on the `$PATH`) or path of the Java executable to use to run the nailgun server. Must be Java 8 or higher. Default: `'java'`
   * `options.jvmProcessID`: `string` | `null` — An opaque identifier for the nailgun server. Executors created with distinct jvmProcessID values will use nailgun servers running in distinct JVM processes. This can be used to isolate XSLT execution environments, and also to identify the process affected when an async JVM process close error occurs. Default: null
   * `options.jvmKeepAliveTimeout`: `number` | `null` — The number of milliseconds to keep the nailgun server running for after all execute() calls have completed. If null (the default), the timeout will be determined automatically (typically around 1 second).
+  * `options.jvmStartupTimeout`: `number` — The number of milliseconds to give the nailgun server to start up before killing it and failing the XSLT execution. Default: 2000
 
 ### function `using(resource, callback)`
 

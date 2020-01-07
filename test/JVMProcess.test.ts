@@ -33,7 +33,7 @@ test.each<[Partial<JVMProcessOptions>, string]>([
     'xslt-nailgun server process failed to start: process unexpectedly terminated with { code: 1 }',
   ],
   [
-    { startupTimeout: 1 },
+    { jvmStartupTimeout: 1 },
     `xslt-nailgun server process failed to start: 1ms startup timeout expired; stderr: ''`,
   ],
 ])(
@@ -50,6 +50,7 @@ test.each<[Partial<JVMProcessOptions>, string]>([
         listenAddress: path,
         classpath: getClasspath(),
         jvmExecutable: 'java',
+        jvmStartupTimeout: 2000,
         ...options,
       }),
       async jvmProcess => {
@@ -70,7 +71,7 @@ test('JVMProcess serverStarted Promise resolves when server has started', async 
       listenAddress: path,
       classpath: getClasspath(),
       jvmExecutable: 'java',
-      startupTimeout: 2000,
+      jvmStartupTimeout: 2000,
     }),
     async jvmProcess => {
       // resolves with listening address when started
@@ -91,7 +92,7 @@ test('listeningOnRandomPort() creates server on automatically-chosen port', asyn
     JVMProcess.listeningOnRandomPort({
       jvmExecutable: 'java',
       classpath: getClasspath(),
-      startupTimeout: 2000,
+      jvmStartupTimeout: 2000,
     }),
     async proc => {
       const address = await proc.serverStarted;
@@ -114,7 +115,7 @@ test('child process streams are no longer open after startup', async () => {
     JVMProcess.listeningOnRandomPort({
       jvmExecutable: 'java',
       classpath: getClasspath(),
-      startupTimeout: 2000,
+      jvmStartupTimeout: 2000,
     }),
     async proc => {
       await proc.serverStarted;
@@ -132,7 +133,7 @@ test('child process stderr stays open if debug is enabled', async () => {
     JVMProcess.listeningOnRandomPort({
       jvmExecutable: 'java',
       classpath: getClasspath(),
-      startupTimeout: 2000,
+      jvmStartupTimeout: 2000,
       debug: true,
     }),
     async proc => {
@@ -152,7 +153,7 @@ test('child process is killed on process exit', async () => {
     JVMProcess.listeningOnRandomPort({
       jvmExecutable: 'java',
       classpath: getClasspath(),
-      startupTimeout: 2000,
+      jvmStartupTimeout: 2000,
     }),
     async proc => {
       const exitHandler = proc['boundOnProcessExit'];
