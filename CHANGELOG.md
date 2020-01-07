@@ -3,8 +3,10 @@
 # 0.1.0
 
 * Support specifying XSLT global parameter values.
+* Support specifying the startup timeout for the JVM server process via the `jvmStartupTimeout` option.
 * Fix truncated/incorrect error output when concurrent errors occurred
 * Fix intermittent test failures
+* Fix startup timeouts not being reported clearly. When a timeout occurred, the serverStarted promise was being rejected with a rejected promise instead of the actual timeout error.
 
 # 0.0.0-beta.4
 
