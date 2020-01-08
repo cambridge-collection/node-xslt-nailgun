@@ -46,7 +46,7 @@ Publishing the package to npm doesn't update what npm considers to be the latest
 
 ```commandline
 $ # Sub X.Y.Z with the actual version
-$ npm dist-tag add @lib.cam/xslt-nailgun@v0.0.0-beta.1 latest
+$ npm dist-tag add @lib.cam/xslt-nailgun@X.Y.Z latest
 ```
 
 You'll need to have an [npm auth token](https://docs.npmjs.com/using-private-packages-in-a-ci-cd-workflow) set up to do this.
