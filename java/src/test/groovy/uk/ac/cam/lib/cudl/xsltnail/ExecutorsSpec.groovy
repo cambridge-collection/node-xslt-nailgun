@@ -53,14 +53,13 @@ class ExecutorsSpec extends Specification {
 
         then:
         interruptedSignal.await(100, TimeUnit.MILLISECONDS)
-        System.currentTimeMillis() < start + 100
         a.isShutdown()
         !a.isTerminated()
 
         cleanup:
         keepRunningSignal.countDown()
-        stoppedRunningSignal.await(100, TimeUnit.MILLISECONDS)
-        a.awaitTermination(5, TimeUnit.MILLISECONDS)
+        assert stoppedRunningSignal.await(100, TimeUnit.MILLISECONDS)
+        assert a.awaitTermination(5, TimeUnit.MILLISECONDS)
         assert a.isTerminated()
     }
 }
