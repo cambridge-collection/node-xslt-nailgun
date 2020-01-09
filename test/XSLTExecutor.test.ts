@@ -337,6 +337,9 @@ test('executor reuses nailgun server when within an un-elapsed jvmKeepAliveTimeo
   expect(pid1).toBe(pid2);
   expect(pid1).toBe(pid3);
   expect(pid1).not.toBe(pid4);
+
+  // Clean up the second JVM by advancing timers to expire the keep-alive
+  jest.runAllTimers();
 });
 
 test("executor doesn't use keep-alive when timeout is 0", async () => {
