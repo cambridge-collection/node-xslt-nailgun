@@ -1,6 +1,6 @@
 {
   "name": "@lib.cam/xslt-nailgun",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Execute XSLT with SAXON in a separate JVM with low overhead",
   "keywords": [
     "xslt",
