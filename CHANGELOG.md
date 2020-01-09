@@ -1,5 +1,9 @@
 # `@lib.cam/xslt-nailgun` Changelog
 
+# 0.2.0
+
+* Export CreateOptions and ExecuteOptions types
+
 # 0.1.0
 
 * Support specifying XSLT global parameter values.
