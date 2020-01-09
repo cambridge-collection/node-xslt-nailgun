@@ -1,10 +1,12 @@
 export {
-  hooks,
-  execute,
+  CreateOptions,
+  ExecuteOptions,
+  InternalError,
+  UserError,
   XSLTExecutor,
   XSLTNailgunError,
-  UserError,
-  InternalError,
+  execute,
+  hooks,
 } from './_internals';
 
 export { using, usingPromise, Closable } from './_resources';
