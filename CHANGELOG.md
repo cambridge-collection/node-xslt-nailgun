@@ -1,5 +1,10 @@
 # `@lib.cam/xslt-nailgun` Changelog
 
+# 0.2.1
+
+* Fix `@types/tapable` types not being in dependencies
+* Update dependencies
+
 # 0.2.0
 
 * Export CreateOptions and ExecuteOptions types
