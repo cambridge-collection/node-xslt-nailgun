@@ -53,7 +53,6 @@
     "tmp-promise": "^2.0.2",
     "ts-jest": "^24.3.0",
     "tslint": "^6.0.0",
-    "typedoc": "^0.15.8",
     "typescript": "^3.7.5"
   },
   "dependencies": {
