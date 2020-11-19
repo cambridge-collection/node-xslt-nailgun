@@ -320,9 +320,9 @@ class XSLTNailSpec extends Specification {
         // Intercept the reload method to know when the reload is complete
         def loader = Spy(FileTimestampAsyncXSLTLoader, constructorArgs: [processor]) {
             _ * asyncReload(_, _, _) >> {
-                CompletableFuture<FileTimestampAsyncXSLTLoader.FileTimestampCachedXSLT> result = callRealMethod()
-                result.thenRunAsync({ reloadCompleteSignal.countDown() })
-                return result
+                CompletableFuture<FileTimestampAsyncXSLTLoader.FileTimestampCachedXSLT> future = callRealMethod()
+                future.thenRunAsync({ reloadCompleteSignal.countDown() })
+                return future
             }
         }
         def xsltFile = File.createTempFile("xslt-nail-test_", "")
