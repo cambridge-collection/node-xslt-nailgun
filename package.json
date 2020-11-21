@@ -25,7 +25,7 @@
     "integration-test": "integration-test/run-all.sh",
     "lint": "tslint --project tsconfig.json",
     "prepack": "echo \"Error: You can't pack/publish from the un-built repo root, use \\`make\\` to build\" >&2; false",
-    "_prepack": "[ \"$(git status --porcelain)\" = '' ] || exit 1",
+    "_prepack": "[ \"$(git status --porcelain)\" = '' ] || [ \"$ALLOW_BUILD_WITH_DIRTY_FILES\" = true ] || exit 1",
     "check": "gts check",
     "fix": "gts fix",
     "posttest": "npm run check"

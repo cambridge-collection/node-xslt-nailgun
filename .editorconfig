@@ -16,5 +16,5 @@ indent_size = 4
 [.git/**/*.diff]
 trim_trailing_whitespace = false
 
-[Makefile]
+[{Makefile,*.mk}]
 indent_style = tab
