@@ -1,5 +1,19 @@
 # Contributing
 
+## Testing
+
+To run the tests using docker-compose:
+
+`build-package` must be run before any of the test containers to compile the java code, and build the release package used by the integration tests:
+```commandline
+$ docker-compose run build-package
+```
+
+Then the `[integration-]test_node-*_java-*` containers can be run to execute the tests:
+```commandline
+$ docker-compose up test_node-10_java-11 integration-test_node-10_java-11 test_node-15_java-15 integration-test_node-15_java-15
+```
+
 ## Publishing
 
 Steps to publish a new release are:

@@ -34,7 +34,6 @@
                     <toolchains>
                         <jdk>
                             <version>${uk.ac.cam.lib.cudl.xslt-nail.javaVersion}</version>
-                            <vendor>openjdk</vendor>
                         </jdk>
                     </toolchains>
                 </configuration>

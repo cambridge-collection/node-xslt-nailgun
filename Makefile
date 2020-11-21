@@ -3,11 +3,13 @@ SHELL = /bin/bash
 
 all: clean pack
 
+include docker-compose.mk
+
 compile-typescript: install
 	npm run build
 
 compile-java:
-	mvn --batch-mode --file java/pom.xml clean verify
+	mvn --batch-mode --file java/pom.xml verify
 
 build/dist-root/jars: build/dist-root compile-java
 	cp -a java/target/jars build/dist-root/
@@ -39,6 +41,7 @@ build/dist-root/src: build/dist-root
 	cp -a src build/dist-root/
 
 ensure-clean-checkout:
+ifneq ($(ALLOW_BUILD_WITH_DIRTY_FILES), true)
 # Refuse to build a package with local modifications, as the package may end up
 # containing the modifications rather than the committed state.
 	@DIRTY_FILES="$$(git status --porcelain)" ; \
@@ -47,6 +50,7 @@ ensure-clean-checkout:
 		echo "$$DIRTY_FILES" ; \
 		exit 1 ; \
 	fi
+endif
 
 normalise-permissions:
 # npm pack includes local file permissions in the .tgz, which can differ between
@@ -68,9 +72,19 @@ lint: install
 clean: clean-build clean-java
 
 clean-java:
-	mvn --batch-mode --file java/pom.xml clean
+# Under Docker we can't remove the actual target dir as it's a volume mount
+ifeq ($(CI), true)
+	rm -rf java/target/*
+else
+	rm -rf java/target/
+endif
 
 clean-build:
+# Under Docker we can't remove the actual build dir as it's a volume mount
+ifeq ($(CI), true)
+	rm -rf build/*
+else
 	rm -rf build
+endif
 
 .PHONY: lint install clean clean-java clean-build compile-typescript compile-java ensure-clean-checkout normalise-permissions
