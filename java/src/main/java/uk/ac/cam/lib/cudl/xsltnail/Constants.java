@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 public final class Constants {
   public static final int EXIT_STATUS_INTERNAL_ERROR = 1;
   public static final int EXIT_STATUS_USER_ERROR = 2;
+  public static final int EXIT_STATUS_AUTOMATIC_SHUTDOWN = 3;
 
   public static final String VERSION = "0.0.0";
   public static final long SHUTDOWN_GRACE_PERIOD = 1000 * 5;
