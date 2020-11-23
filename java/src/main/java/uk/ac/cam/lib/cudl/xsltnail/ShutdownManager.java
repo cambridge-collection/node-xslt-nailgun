@@ -38,7 +38,15 @@ public interface ShutdownManager {
 
     @Value.Default
     public ScheduledExecutorService scheduledExecutorService() {
-      return new ScheduledThreadPoolExecutor(1);
+      return new ScheduledThreadPoolExecutor(
+          1,
+          // Use daemon threads to avoid the executor keeping the JVM running
+          r -> {
+            Thread t = new Thread(r);
+            t.setDaemon(true);
+            t.setName(AbstractDefaultShutdownManager.class.getName() + "#scheduledExecutorService");
+            return t;
+          });
     }
 
     @Value.Check

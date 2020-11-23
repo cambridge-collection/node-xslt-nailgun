@@ -69,4 +69,14 @@ final class Values {
             () ->
                 new NoSuchElementException(String.format("Required key does not exist: %s", key)));
   }
+
+  public static <T> Try<T> tryFromValueOrError(T value, Throwable err) {
+    if (err != null) {
+      if (value != null) {
+        throw new IllegalArgumentException("value must be null if error is provided");
+      }
+      return Try.failure(err);
+    }
+    return Try.success(value);
+  }
 }
