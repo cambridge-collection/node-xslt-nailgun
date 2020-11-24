@@ -1,18 +1,28 @@
 package uk.ac.cam.lib.cudl.xsltnail;
 
 import static java.lang.String.format;
+import static uk.ac.cam.lib.cudl.xsltnail.Values.ifString;
 import static uk.ac.cam.lib.cudl.xsltnail.Values.requireKey;
 
-import com.facebook.nailgun.*;
+import com.facebook.nailgun.Alias;
+import com.facebook.nailgun.AliasManager;
+import com.facebook.nailgun.NGCommunicator;
+import com.facebook.nailgun.NGConstants;
+import com.facebook.nailgun.NGListeningAddress;
+import com.facebook.nailgun.NGServer;
+import com.facebook.nailgun.NGSession;
 import com.facebook.nailgun.builtins.NGStop;
 import io.vavr.Predicates;
 import io.vavr.collection.HashMap;
 import io.vavr.collection.Map;
 import io.vavr.collection.Stream;
 import io.vavr.control.Option;
+import io.vavr.control.Try;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.concurrent.ExecutionException;
 import java.util.logging.ConsoleHandler;
+import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -45,14 +55,10 @@ public final class XSLTNailgunServer {
               new NGServer(
                   address, NGServer.DEFAULT_SESSIONPOOLSIZE, NGConstants.HEARTBEAT_TIMEOUT_MILLIS));
     } catch (FatalError e) {
-      System.err.format("Error: %s", e.getMessage());
-      System.exit(1);
+      System.err.format("Error: %s\n", e.getMessage().stripTrailing());
+      System.exit(Constants.EXIT_STATUS_USER_ERROR);
       throw new AssertionError();
     }
-  }
-
-  interface ServerFactory {
-    NGServer createServer(NGListeningAddress address);
   }
 
   static void main(io.vavr.collection.Map<String, Object> args, ServerFactory serverFactory) {
@@ -70,6 +76,7 @@ public final class XSLTNailgunServer {
 
     NGListeningAddress listenAddress = getAddress(args);
     NGServer server = serverFactory.createServer(listenAddress);
+    ShutdownManager shutdownManager = DefaultShutdownManager.builder().server(server).build();
 
     server.setAllowNailsByClassName(false);
     removeDefaultAliases(server.getAliasManager());
@@ -77,22 +84,36 @@ public final class XSLTNailgunServer {
         .getAliasManager()
         .addAlias(new Alias("xslt", "Apply an XSLT program to an XML document.", XSLTNail.class));
 
+    ifString(requireKey(args, "--require-running-process").get())
+        .peek(
+            pidString ->
+                Try.of(() -> Long.parseLong(pidString))
+                    .map(
+                        pid ->
+                            ProcessHandle.of(pid)
+                                .orElseThrow(() -> new RuntimeException("Process does not exist")))
+                    .fold(
+                        e -> {
+                          throw new FatalError(
+                              String.format(
+                                  "invalid --require-owner PID: \"%s\": %s",
+                                  pidString, e.getMessage()),
+                              e);
+                        },
+                        handle -> {
+                          setupShutdownOnRequiredProcessExit(handle, shutdownManager);
+                          return null;
+                        }));
+
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread(
                 () -> {
-                  server.shutdown();
-
-                  long limit = System.currentTimeMillis() + Constants.SHUTDOWN_GRACE_PERIOD;
-                  while (server.isRunning() && System.currentTimeMillis() < limit) {
-                    try {
-                      Thread.sleep(100);
-                    } catch (InterruptedException e) {
-                      /* ignored */
-                    }
+                  try {
+                    shutdownManager.shutdown().toCompletableFuture().get();
+                  } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException("Nailgun server shutdown failed", e);
                   }
-
-                  if (server.isRunning()) System.err.println("NGServer failed to shutdown cleanly");
                 }));
 
     try {
@@ -104,6 +125,11 @@ public final class XSLTNailgunServer {
       // still uses it. We'll invoke it ourselves for now.
       XSLTNail.nailShutdown(server);
     }
+  }
+
+  static void setupShutdownOnRequiredProcessExit(
+      ProcessHandle requiredProcess, ShutdownManager shutdownManager) {
+    AutomaticShutdownManager.triggeredByProcessExit(requiredProcess, shutdownManager).start();
   }
 
   private static Stream<Alias> getAliases(AliasManager am) {
@@ -142,6 +168,22 @@ public final class XSLTNailgunServer {
             .getOrElse(() -> AddressType.guessAddressType(address));
 
     return type.parseAddress(address);
+  }
+
+  private static void configureLogging(Level level) {
+    Logger ngLog = Logger.getLogger("com.facebook.nailgun");
+    Logger xsltNgLog = Logger.getLogger(XSLTNailgunServer.class.getPackageName());
+    ngLog.setLevel(level);
+    xsltNgLog.setLevel(level);
+    ngLog.setUseParentHandlers(false);
+    xsltNgLog.setUseParentHandlers(false);
+    Handler handler = new ConsoleHandler();
+    ngLog.addHandler(handler);
+    xsltNgLog.addHandler(handler);
+    Logger.getLogger(NGServer.class.getName()).setLevel(level);
+    Logger.getLogger(NGSession.class.getName()).setLevel(level);
+    Logger.getLogger(NGCommunicator.class.getName()).setLevel(level);
+    Logger.getLogger(DefaultAutomaticShutdownManager.class.getName()).setLevel(level);
   }
 
   private enum AddressType {
@@ -186,14 +228,8 @@ public final class XSLTNailgunServer {
     protected abstract NGListeningAddress parseAddress(String address);
   }
 
-  private static void configureLogging(Level level) {
-    Logger nglog = Logger.getLogger("com.facebook.nailgun");
-    nglog.setLevel(level);
-    nglog.setUseParentHandlers(false);
-    nglog.addHandler(new ConsoleHandler());
-    Logger.getLogger(NGServer.class.getName()).setLevel(level);
-    Logger.getLogger(NGSession.class.getName()).setLevel(level);
-    Logger.getLogger(NGCommunicator.class.getName()).setLevel(level);
+  interface ServerFactory {
+    NGServer createServer(NGListeningAddress address);
   }
 
   static class FatalError extends RuntimeException {
