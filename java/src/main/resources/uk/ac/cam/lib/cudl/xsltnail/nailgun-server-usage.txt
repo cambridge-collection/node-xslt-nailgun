@@ -14,5 +14,8 @@ Options:
     --log-level=<level>
                 Set the log level. Values can be SEVERE, WARNING,
                 INFO, CONFIG, FINE, FINER or FINEST.
+    --require-running-process=<pid>
+                Shutdown the server if the process identified by this PID
+                ceases to be alive while the server is running.
     --help      Show this information
     --version   Show the version

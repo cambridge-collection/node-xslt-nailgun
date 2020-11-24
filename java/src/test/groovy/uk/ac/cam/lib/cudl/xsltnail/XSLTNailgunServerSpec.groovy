@@ -9,13 +9,11 @@ import spock.lang.Specification
 import spock.lang.Unroll
 
 class XSLTNailgunServerSpec extends Specification {
-    private static final OPTIONAL_ARGS = HashMap.ofAll(["--address-type": null, "--log-level": null])
+    private static final OPTIONAL_ARGS = HashMap.ofAll(["--address-type": null, "--log-level": null, "--require-running-process": null])
 
     NGServer server
     AliasManager aliasManager
     XSLTNailgunServer.ServerFactory serverFactory
-
-
 
     def setup() {
         aliasManager = new AliasManager()
