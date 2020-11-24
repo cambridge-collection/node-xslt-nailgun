@@ -162,7 +162,7 @@
             </plugin>
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M3</version>
+                <version>3.0.0-M4</version>
                 <configuration>
                     <useFile>false</useFile>
                     <includes>
@@ -174,7 +174,7 @@
             </plugin>
             <plugin>
                 <artifactId>maven-failsafe-plugin</artifactId>
-                <version>3.0.0-M3</version>
+                <version>3.0.0-M4</version>
                 <executions>
                     <execution>
                         <goals>
@@ -208,6 +208,26 @@
             </plugin>
         </plugins>
     </build>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.spockframework</groupId>
+                <artifactId>spock-bom</artifactId>
+                <version>2.0-M4-groovy-3.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>5.7.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -257,11 +277,17 @@
             <version>3.0.6</version>
             <type>pom</type>
             <scope>test</scope>
+            <exclusions>
+                <!-- The tests don't run under maven if testng is included.  -->
+                <exclusion>
+                    <groupId>org.codehaus.groovy</groupId>
+                    <artifactId>groovy-testng</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.spockframework</groupId>
             <artifactId>spock-core</artifactId>
-            <version>2.0-M4-groovy-3.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
