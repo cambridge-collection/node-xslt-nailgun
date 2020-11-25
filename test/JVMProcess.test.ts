@@ -13,7 +13,7 @@ import {
 
 beforeAll(() => {
   // Fail if the .jar is not built
-  expect(glob.sync(getClasspath()).length).toBe(12);
+  expect(glob.sync(getClasspath()).length).toBe(11);
 });
 
 // https://github.com/facebook/jest/issues/8906

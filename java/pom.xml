@@ -124,7 +124,7 @@
                         </goals>
                         <configuration>
                             <outputDirectory>${dependency-jars-dir}</outputDirectory>
-                            <includeScope>compile</includeScope>
+                            <includeScope>runtime</includeScope>
                         </configuration>
                     </execution>
                     <execution>
