@@ -7,30 +7,24 @@ IS_BB_PIPELINES="$(env | grep -q '^BITBUCKET_' && echo true || true)"
   timeout 5 node keep-alive-termination.js
 }
 
-@test "nailgun server process does not leak when executor is not closed" {
-  get_child_pid() {
-    for _ in {1..10} ; do
-      CHILD="$(pgrep --parent "$1")"
-      if [[ "$CHILD" ]]; then
-          echo $CHILD
-          return
-      fi
-      sleep 0.1
-    done
-    echo "Failed to find child PID" 1>&2
-    return 1
-  }
+get_child_pid() {
+  for _ in {1..10} ; do
+    CHILD="$(pgrep -P "$1")"
+    if [[ "$CHILD" ]]; then
+        echo $CHILD
+        return
+    fi
+    sleep 0.1
+  done
+  echo "Failed to find child PID" 1>&2
+  return 1
+}
 
-  node process-leak.js &
-  PID=${!}
-  CHILD_PID="$(get_child_pid "$PID")"
-  [[ "$CHILD_PID" ]]
-  echo "PID: $PID, CHILD_PID: $CHILD_PID"
-  wait $PID
-
+wait_for_nailgun_server_exit() {
+  CHILD_PID="$1"
   # It can take a short time for the child to actually die
   for _ in {1..10} ; do
-    status="$(ps -q "$CHILD_PID" -o stat --no-headers || true)"
+    status="$(ps -p "$CHILD_PID" -o stat= || true)"
     # the child should not be running
     if [[ "$status" = "" ]] ; then
       return
@@ -43,4 +37,29 @@ IS_BB_PIPELINES="$(env | grep -q '^BITBUCKET_' && echo true || true)"
   done
   echo "child $CHILD_PID is still alive"
   false
+}
+
+@test "nailgun server process does not leak when executor is not closed" {
+  node process-leak.js &
+  PID=${!}
+  CHILD_PID="$(get_child_pid "$PID")"
+  [[ "$CHILD_PID" ]]
+  echo "PID: $PID, CHILD_PID: $CHILD_PID"
+  wait $PID
+
+  wait_for_nailgun_server_exit "$CHILD_PID"
+}
+
+@test "nailgun server process does not leak when node process is forcibly killed " {
+  node run-nailgun-server.js &
+  PID=${!}
+  CHILD_PID="$(get_child_pid "$PID")"
+  [[ "$CHILD_PID" ]]
+  echo "PID: $PID, CHILD_PID: $CHILD_PID"
+
+  # kill the node process. It won't be able to shutdown the nailgun server itself, but the server
+  # should realise the node proess has terminated and shut itself down.
+  kill -9 "$PID"
+
+  wait_for_nailgun_server_exit "$CHILD_PID"
 }
