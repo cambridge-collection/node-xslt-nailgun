@@ -225,7 +225,7 @@ class KeepAliveStrategyHooks<T extends Closable> {
   constructor() {
     // Throw errors by default if nobody taps asyncCloseError
     this.asyncCloseError.tap(
-      { name: 'KeepAliveStrategyHooks', stage: Number.MAX_SAFE_INTEGER } as Tap,
+      { name: 'KeepAliveStrategyHooks', stage: Number.MAX_SAFE_INTEGER },
       error => {
         throw error;
       }
@@ -840,13 +840,13 @@ class XSLTNailgunHooks {
   );
 
   constructor() {
-    const options: Partial<Tap> = {
+    const options = {
       name: 'XSLTNailgunHooks',
       stage: Number.MAX_SAFE_INTEGER,
     };
 
     // Throw by default if nothing handles an error
-    this.asyncJVMShutdownError.tap(options as Tap, (error, _options) => {
+    this.asyncJVMShutdownError.tap(options, (error, _options) => {
       throw new TraceError(
         `\
 Unhandled xslt-nailgun JVM process shutdown error; JVM options: ${JSON.stringify(
