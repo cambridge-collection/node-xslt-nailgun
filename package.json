@@ -59,7 +59,6 @@
     "bl": "^4.0.0",
     "debug": "^4.1.1",
     "json-stable-stringify": "^1.0.1",
-    "object.values": "^1.1.1",
     "p-finally": "^2.0.1",
     "promise.allsettled": "^1.0.2",
     "readable-stream": "^3.5.0",
