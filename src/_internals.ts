@@ -564,6 +564,8 @@ export class JVMProcess implements Closable {
       '-cp',
       options.classpath,
       'uk.ac.cam.lib.cudl.xsltnail.XSLTNailgunServer',
+      '--require-running-process',
+      `${process.pid}`,
       '--address-type',
       this.options.addressType,
       this.options.listenAddress,
