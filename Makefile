@@ -67,7 +67,6 @@ install:
 
 lint: install
 	npm run check
-	npm run lint
 
 clean: clean-build clean-java
 
