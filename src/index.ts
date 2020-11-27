@@ -9,4 +9,4 @@ export {
   hooks,
 } from './_internals';
 
-export { using, usingPromise, Closable } from './_resources';
+export {using, usingPromise, Closable} from './_resources';

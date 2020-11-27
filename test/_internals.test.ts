@@ -1,5 +1,5 @@
 import path from 'path';
-import { AddressType, getClasspath, parseClarkName } from '../src/_internals';
+import {AddressType, getClasspath, parseClarkName} from '../src/_internals';
 
 test('AddressType enum has string value', () => {
   expect(AddressType.local).toBe('local');
@@ -12,15 +12,15 @@ test('getClasspath()', () => {
   );
 });
 
-test.each<[string, { ns: string | undefined; id: string }]>([
-  ['foo', { ns: '', id: 'foo' }],
-  ['{}foo', { ns: '', id: 'foo' }],
-  ['{http://example}foo', { ns: 'http://example', id: 'foo' }],
-  ['f‿͠', { ns: '', id: 'f‿͠' }],
-  ['{a⁀}f‿͠', { ns: 'a⁀', id: 'f‿͠' }],
+test.each<[string, {ns: string | undefined; id: string}]>([
+  ['foo', {ns: '', id: 'foo'}],
+  ['{}foo', {ns: '', id: 'foo'}],
+  ['{http://example}foo', {ns: 'http://example', id: 'foo'}],
+  ['f‿͠', {ns: '', id: 'f‿͠'}],
+  ['{a⁀}f‿͠', {ns: 'a⁀', id: 'f‿͠'}],
   [
     '{https://en.wiktionary.org/wiki/Ῥόδος}foo',
-    { ns: 'https://en.wiktionary.org/wiki/Ῥόδος', id: 'foo' },
+    {ns: 'https://en.wiktionary.org/wiki/Ῥόδος', id: 'foo'},
   ],
 ])('parseClarkName() accepts valid Clark qname %s', (value, expected) => {
   expect(parseClarkName(value)).toEqual(expected);

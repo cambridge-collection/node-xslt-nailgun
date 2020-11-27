@@ -1,4 +1,4 @@
-import { using } from '../src';
+import {using} from '../src';
 import {
   DefaultAutoCloser,
   ReferenceCountKeepAliveStrategy,
@@ -8,7 +8,7 @@ test('resource is closed after initial user completes', async () => {
   expect.assertions(7);
 
   const mockClose = jest.fn();
-  const resource = { close: mockClose };
+  const resource = {close: mockClose};
 
   const closer = new DefaultAutoCloser(
     Promise.resolve(resource),
@@ -32,7 +32,7 @@ test('resource is not closed when a ref closes if another ref is active', async 
   expect.assertions(5);
 
   const mockClose = jest.fn();
-  const resource = { close: mockClose };
+  const resource = {close: mockClose};
 
   const closer = new DefaultAutoCloser(
     Promise.resolve(resource),
@@ -55,7 +55,7 @@ test('using() closes references', async () => {
   expect.assertions(6);
 
   const mockClose = jest.fn();
-  const resource = { close: mockClose };
+  const resource = {close: mockClose};
 
   const closer = new DefaultAutoCloser(
     Promise.resolve(resource),

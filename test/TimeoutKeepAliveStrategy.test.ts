@@ -1,4 +1,4 @@
-import { Closable } from '../src';
+import {Closable} from '../src';
 import {
   AutoCloserReference,
   DefaultAutoCloserKeepAliveHooks,

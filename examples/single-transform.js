@@ -1,16 +1,16 @@
-let path = require('path');
-let {execute} = require('@lib.cam/xslt-nailgun');
+const path = require('path');
+const {execute} = require('@lib.cam/xslt-nailgun');
 
 async function main() {
-    let buffer = await execute({
-        xml: '<foo>hi</foo>',
-        xsltPath: path.resolve(__dirname, 'wrap.xsl')
-    });
-    console.log(buffer.toString());
+  const buffer = await execute({
+    xml: '<foo>hi</foo>',
+    xsltPath: path.resolve(__dirname, 'wrap.xsl'),
+  });
+  console.log(buffer.toString());
 }
 main().catch(e => {
-    console.error('Failed to execute transform: ' + e);
-    process.exit(1);
+  console.error('Failed to execute transform: ' + e);
+  process.exit(1);
 });
 
 // Output:

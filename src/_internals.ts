@@ -1,19 +1,19 @@
-import { name } from 'xml-name-validator';
+import {name} from 'xml-name-validator';
 
-import assert, { AssertionError } from 'assert';
+import assert, {AssertionError} from 'assert';
 import BufferList from 'bl';
-import { ChildProcess, spawn } from 'child_process';
+import {ChildProcess, spawn} from 'child_process';
 import createDebug from 'debug';
 import jsonStableStringify from 'json-stable-stringify';
 import promiseFinally from 'p-finally';
 import path from 'path';
 import readline from 'readline';
 import RingBuffer from 'ringbufferjs';
-import { Readable } from 'stream';
-import { AsyncParallelHook, SyncBailHook, SyncHook, Tap } from 'tapable';
+import {Readable} from 'stream';
+import {AsyncParallelHook, SyncBailHook, SyncHook, Tap} from 'tapable';
 import TraceError from 'trace-error';
 import * as util from 'util';
-import { Closable, using } from './_resources';
+import {Closable, using} from './_resources';
 import jvmpin from './vendor/jvmpin/lib/jvmpin';
 import Timeout = NodeJS.Timeout;
 
@@ -31,7 +31,7 @@ export class UserError extends XSLTNailgunError {
 
   constructor(message: string, executeOptions: ExecuteOptions) {
     super(message);
-    this.executeOptions = { ...executeOptions };
+    this.executeOptions = {...executeOptions};
   }
 }
 export class InternalError extends XSLTNailgunError {}
@@ -58,7 +58,7 @@ function parseClarkNameError(value: string, detailMsg: string): string {
   return `invalid Clark-encoded qname ${util.inspect(value)}: ${detailMsg}`;
 }
 
-export function parseClarkName(value: string): { ns: string; id: string } {
+export function parseClarkName(value: string): {ns: string; id: string} {
   let ns;
   let id;
   if (value.startsWith('{')) {
@@ -82,7 +82,7 @@ export function parseClarkName(value: string): { ns: string; id: string } {
     );
   }
 
-  return { ns, id };
+  return {ns, id};
 }
 
 export enum AddressType {
@@ -225,7 +225,7 @@ class KeepAliveStrategyHooks<T extends Closable> {
   constructor() {
     // Throw errors by default if nobody taps asyncCloseError
     this.asyncCloseError.tap(
-      { name: 'KeepAliveStrategyHooks', stage: Number.MAX_SAFE_INTEGER },
+      {name: 'KeepAliveStrategyHooks', stage: Number.MAX_SAFE_INTEGER},
       error => {
         throw error;
       }
@@ -512,7 +512,7 @@ export class DefaultAutoCloser<T extends Closable> implements AutoCloser<T> {
   }
 }
 
-type ProcessExit = { code: number } | { signal: string };
+type ProcessExit = {code: number} | {signal: string};
 
 type RandomPortJVMProcessOptions = Omit<
   JVMProcessOptions,
@@ -535,9 +535,9 @@ export class JVMProcess implements Closable {
     signal: string | null
   ): ProcessExit {
     if (code !== null) {
-      return { code };
+      return {code};
     } else if (signal !== null) {
-      return { signal };
+      return {signal};
     } else {
       throw new Error('code and signal are null');
     }
@@ -556,7 +556,7 @@ export class JVMProcess implements Closable {
 
   constructor(options: JVMProcessOptions) {
     const startupTimeout = options.jvmStartupTimeout;
-    this.options = { ...options };
+    this.options = {...options};
     this.debug = !!options.debug;
     this.address = parseServerAddress(options);
     this.stderrLines = new RingBuffer<string>(500);
@@ -740,8 +740,10 @@ ${this.getCurrentStderr()}`;
     if (!this.debug) {
       this.serverStarted.then(
         () => {
-          DEBUG.jvmProcess(`\
-nailgun server\'s stderr will no longer be monitored as the server has started and debug is disabled`);
+          DEBUG.jvmProcess(
+            "\
+nailgun server's stderr will no longer be monitored as the server has started and debug is disabled"
+          );
           stderrLines.removeAllListeners('line');
           stderrLines.close();
           stderr.destroy();
@@ -785,8 +787,10 @@ nailgun server\'s stderr will no longer be monitored as the server has started a
 
   private onProcessExit(): void {
     if (!this.process.killed) {
-      DEBUG.jvmProcess(`\
-received our node process's 'exit' event, but our nailgun server hasn't been killed; sending it SIGKILL`);
+      DEBUG.jvmProcess(
+        "\
+received our node process's 'exit' event, but our nailgun server hasn't been killed; sending it SIGKILL"
+      );
       this.process.kill('SIGKILL');
     }
   }
@@ -808,10 +812,7 @@ received our node process's 'exit' event, but our nailgun server hasn't been kil
   }
 }
 
-function _timeout<T>(
-  ms: number,
-  value?: T
-): { finished: Promise<T> } & Closable {
+function _timeout<T>(ms: number, value?: T): {finished: Promise<T>} & Closable {
   let resolve: () => void;
   let id: Timeout;
   const close = () => {
@@ -826,7 +827,7 @@ function _timeout<T>(
     }),
   };
 }
-export { _timeout as timeout };
+export {_timeout as timeout};
 
 const serverProcesses = new Map<string, AutoCloser<JVMProcess>>();
 
@@ -1077,8 +1078,10 @@ export class XSLTExecutor implements Closable {
       if (anyOpts.xml !== undefined && anyOpts.xmlPath !== undefined) {
         throw new Error('Options xml and xmlPath cannot be specified together');
       }
-      throw new Error(`\
-No input specified in options - at least one of xml, xmlPath, systemIdentifier must be specified`);
+      throw new Error(
+        '\
+No input specified in options - at least one of xml, xmlPath, systemIdentifier must be specified'
+      );
     }
 
     return {
@@ -1139,7 +1142,7 @@ No input specified in options - at least one of xml, xmlPath, systemIdentifier m
       throw new Error('execute() called following close()');
     }
 
-    const { args, stdin } = XSLTExecutor.getNailInputs(options);
+    const {args, stdin} = XSLTExecutor.getNailInputs(options);
 
     const process = await (await this.serverProcessRef).resource;
     const address = await process.serverStarted;
@@ -1173,7 +1176,7 @@ Error communicating with xslt-nailgun server. Nailgun server stderr${serverError
 
     await abortOnError(connected, error);
 
-    const proc = conn.spawn('xslt', args, { env: {} });
+    const proc = conn.spawn('xslt', args, {env: {}});
     const exitStatus = new Promise<number>((resolve, reject) => {
       proc.on('exit', (signal: number | null) => {
         if (signal === null) {

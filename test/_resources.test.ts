@@ -1,4 +1,4 @@
-import { Closable, using, usingPromise } from '../src';
+import {Closable, using, usingPromise} from '../src';
 
 class Thing implements Closable {
   isClosed = false;

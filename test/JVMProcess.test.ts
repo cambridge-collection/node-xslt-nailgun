@@ -1,7 +1,7 @@
-import { ChildProcess } from 'child_process';
+import {ChildProcess} from 'child_process';
 import glob from 'glob';
-import { tmpName } from 'tmp-promise';
-import { using } from '../src';
+import {tmpName} from 'tmp-promise';
+import {using} from '../src';
 import {
   AddressType,
   getClasspath,
@@ -21,20 +21,20 @@ test('dummy test to work around jest issue #8906', () => undefined);
 
 test.each<[Partial<JVMProcessOptions>, string]>([
   [
-    { jvmExecutable: '/does/not/exist' },
+    {jvmExecutable: '/does/not/exist'},
     'xslt-nailgun server process failed to start: stderr:',
   ],
   [
-    { classpath: '/does/not/exist' },
+    {classpath: '/does/not/exist'},
     'xslt-nailgun server process failed to start: process unexpectedly terminated with { code: 1 }',
   ],
   [
-    { listenAddress: '/dev/null' },
+    {listenAddress: '/dev/null'},
     'xslt-nailgun server process failed to start: process unexpectedly terminated with { code: 1 }',
   ],
   [
-    { jvmStartupTimeout: 1 },
-    `xslt-nailgun server process failed to start: 1ms startup timeout expired; stderr: ''`,
+    {jvmStartupTimeout: 1},
+    "xslt-nailgun server process failed to start: 1ms startup timeout expired; stderr: ''",
   ],
 ])(
   '[%#] JVMProcess serverStarted Promise rejects when process fails to start',
@@ -80,7 +80,7 @@ test('JVMProcess serverStarted Promise resolves when server has started', async 
       );
 
       await jvmProcess.close();
-      await expect(jvmProcess.processExit).resolves.toEqual({ code: 143 });
+      await expect(jvmProcess.processExit).resolves.toEqual({code: 143});
     }
   );
 });
