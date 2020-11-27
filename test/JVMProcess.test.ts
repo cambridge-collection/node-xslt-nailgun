@@ -1,4 +1,3 @@
-import {ChildProcess} from 'child_process';
 import glob from 'glob';
 import {tmpName} from 'tmp-promise';
 import {using} from '../src';

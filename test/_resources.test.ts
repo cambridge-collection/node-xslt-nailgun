@@ -75,7 +75,7 @@ test('usingPromise() rejects with error from user function if it and resource pr
   );
 
   await expect(
-    usingPromise(resource, async r => {
+    usingPromise(resource, async () => {
       throw new Error('failed to use resource');
     })
   ).rejects.toThrow('failed to use resource');
@@ -87,7 +87,7 @@ test('using() rejects with error from resource promise if rejects', async () => 
   );
 
   await expect(
-    using(resource, async r => {
+    using(resource, async () => {
       throw new Error('failed to use resource');
     })
   ).rejects.toThrow('failed to create resource');

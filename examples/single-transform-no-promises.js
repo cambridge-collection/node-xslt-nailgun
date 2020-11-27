@@ -4,10 +4,10 @@ const execute = util.callbackify(require('@lib.cam/xslt-nailgun').execute);
 
 execute(
   {xml: '<foo>hi</foo>', xsltPath: path.resolve(__dirname, 'wrap.xsl')},
-  (err, buffer) => {
-    if (err) {
+  (e, buffer) => {
+    if (e) {
       console.error('Failed to execute transform: ' + e);
-      process.exit(1);
+      throw e;
     }
     console.log(buffer.toString());
   }
