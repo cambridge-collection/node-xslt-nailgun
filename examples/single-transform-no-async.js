@@ -5,7 +5,7 @@ execute({xml: '<foo>hi</foo>', xsltPath: path.resolve(__dirname, 'wrap.xsl')})
   .then(buffer => console.log(buffer.toString()))
   .catch(e => {
     console.error('Failed to execute transform: ' + e);
-    process.exit(1);
+    throw e;
   });
 
 // Output:

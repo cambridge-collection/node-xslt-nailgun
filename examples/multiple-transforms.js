@@ -173,7 +173,7 @@ taken is slightly less than running in series.
   })();
 
   console.log(`\
-## execute() in series - OK 
+## execute() in series - OK
    (so long as the time between calls is under the keep-alive timeout)
 
 This happens because the top-level execute() function uses reference counting to
@@ -269,5 +269,5 @@ second executor has to start a new JVM.
 }
 main().catch(e => {
   console.error('Failed to execute transform: ' + e);
-  process.exit(1);
+  throw e;
 });

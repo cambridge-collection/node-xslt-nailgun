@@ -8,8 +8,8 @@ execute({
   () => {
     console.log('execute() completed; node process should exit immediately');
   },
-  err => {
-    console.error('execute() failed', err);
-    process.exit(1);
+  e => {
+    console.error('execute() failed', e);
+    throw e;
   }
 );

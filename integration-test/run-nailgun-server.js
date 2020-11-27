@@ -18,5 +18,5 @@ executor
   })
   .catch(e => {
     console.error('Failed to execute transform: ' + e);
-    process.exit(1);
+    throw e;
   });

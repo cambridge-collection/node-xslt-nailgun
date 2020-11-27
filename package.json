@@ -75,9 +75,7 @@
     "serverJarsPath": "java/target/jars"
   },
   "files": [
-    "**/*.js",
-    "**/*.map",
-    "**/*.ts",
+    "@(lib|src)/**/*.@(js|ts|map)",
     "jars/*.jar"
   ],
   "jest-junit": {

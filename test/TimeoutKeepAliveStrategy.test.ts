@@ -45,7 +45,7 @@ test('is closed after timeout expires', async () => {
 
 test('reports close errors', async () => {
   const keepAlive = new TimeoutKeepAliveStrategy(0);
-  const onAsyncCloseError = jest.fn(e => true); // report that we handled the error
+  const onAsyncCloseError = jest.fn<boolean, [Error]>(() => true); // report that we handled the error
   const err = new Error('boom');
   const onDead = jest.fn(callback => callback(err)); // fail with the error
   const autoCloserHooks = new DefaultAutoCloserKeepAliveHooks<Closable>();

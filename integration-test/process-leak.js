@@ -10,9 +10,9 @@ executor
   })
   .then(() => {
     console.log('execute() completed, exiting without cleaning up');
-    process.exit(0);
+    process.exit(0); // eslint-disable-line no-process-exit
   })
   .catch(e => {
     console.error('Failed to execute transform: ' + e);
-    process.exit(1);
+    throw e;
   });

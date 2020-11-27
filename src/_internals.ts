@@ -1,6 +1,6 @@
 import {name} from 'xml-name-validator';
 
-import assert, {AssertionError} from 'assert';
+import assert from 'assert';
 import BufferList from 'bl';
 import {ChildProcess, spawn} from 'child_process';
 import createDebug from 'debug';
@@ -10,7 +10,7 @@ import path from 'path';
 import readline from 'readline';
 import RingBuffer from 'ringbufferjs';
 import {Readable} from 'stream';
-import {AsyncParallelHook, SyncBailHook, SyncHook, Tap} from 'tapable';
+import {AsyncParallelHook, SyncBailHook, SyncHook} from 'tapable';
 import TraceError from 'trace-error';
 import * as util from 'util';
 import {Closable, using} from './_resources';
@@ -218,7 +218,7 @@ interface AutoCloser<T extends Closable> {
   ref(): AutoCloserReference<T>;
 }
 
-class KeepAliveStrategyHooks<T extends Closable> {
+class KeepAliveStrategyHooks {
   readonly dead = new AsyncParallelHook();
   readonly asyncCloseError = new SyncBailHook<Error>(['error']);
 
@@ -234,14 +234,14 @@ class KeepAliveStrategyHooks<T extends Closable> {
 }
 
 interface KeepAliveStrategy<T extends Closable> {
-  readonly hooks: KeepAliveStrategyHooks<T>;
+  readonly hooks: KeepAliveStrategyHooks;
   isAlive(): boolean;
   accept(hooks: DefaultAutoCloserKeepAliveHooks<T>): void;
 }
 
 abstract class BaseKeepAliveStrategy<T extends Closable = Closable>
   implements KeepAliveStrategy<T> {
-  readonly hooks = new KeepAliveStrategyHooks<T>();
+  readonly hooks = new KeepAliveStrategyHooks();
   protected _isAlive: boolean;
   private autoCloserHooks: DefaultAutoCloserKeepAliveHooks<T> | undefined;
 
@@ -324,7 +324,7 @@ export class TimeoutKeepAliveStrategy<
     this.timeout = timeout;
   }
 
-  protected async onRefClosed(ref: AutoCloserReference<T>): Promise<void> {
+  protected async onRefClosed(): Promise<void> {
     assert(this.openRefCount > 0);
     this.openRefCount--;
 
@@ -334,7 +334,7 @@ export class TimeoutKeepAliveStrategy<
     }
   }
 
-  protected onRefOpened(ref: AutoCloserReference<T>): void {
+  protected onRefOpened(): void {
     if (this.cancelTimeout()) {
       DEBUG.keepAliveTimeout(
         'cancelled timeout because a new reference was created'
@@ -463,18 +463,17 @@ export class DefaultAutoCloser<T extends Closable> implements AutoCloser<T> {
       throw new Error('ref() called on closed AutoCloser');
     }
 
-    const autoCloser = this;
     let closed = false;
     const ref: AutoCloserReference<T> = {
       resource: this.resource,
-      async close(): Promise<void> {
+      close: async (): Promise<void> => {
         if (closed) {
           DEBUG.defaultAutoCloser('close() called on already-closed ref');
           return;
         }
         closed = true;
         DEBUG.defaultAutoCloser('closed a ref');
-        await autoCloser.keepAliveHooks.refClosed.promise(ref);
+        await this.keepAliveHooks.refClosed.promise(ref);
       },
     };
     DEBUG.defaultAutoCloser('created a ref');
@@ -957,10 +956,10 @@ function getServerProcessReference(
               );
               timeoutKeepAlive.updateTimeout(autoTimeout);
             },
-            ignored => undefined
+            () => undefined
           );
         },
-        ignored => undefined
+        () => undefined
       );
     }
 
@@ -1122,7 +1121,7 @@ No input specified in options - at least one of xml, xmlPath, systemIdentifier m
     this.closeStarted = true;
     await Promise.all(
       Array.from(this.activeExecutions, pending =>
-        pending.catch(err => undefined)
+        pending.catch(() => undefined)
       )
     );
     assert.strict(this.activeExecutions.size === 0);
