@@ -15,7 +15,7 @@
   "license": "MIT",
   "repository": "bitbucket:CUDL/node-xslt-nailgun",
   "engines": {
-    "node": ">=v8"
+    "node": ">=v10"
   },
   "scripts": {
     "build": "tsc --build tsconfig.build.json",
