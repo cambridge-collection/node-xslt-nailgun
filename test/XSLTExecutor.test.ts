@@ -1,7 +1,7 @@
 import 'jest-xml-matcher';
 import path from 'path';
-import { URL } from 'url';
-import { InternalError, UserError, using, XSLTExecutor } from '../src';
+import {URL} from 'url';
+import {InternalError, UserError, using, XSLTExecutor} from '../src';
 import {
   execute,
   ExecuteOptions,
@@ -30,18 +30,18 @@ function assignReadonlyProperty<
   K extends keyof T,
   V extends T[K]
 >(obj: T, key: K, value: V): void {
-  type WriteableT = { [P in keyof T]: V };
+  type WriteableT = {[P in keyof T]: V};
   const writableObj: WriteableT = obj as WriteableT;
   writableObj[key] = value;
 }
 
 test.each<[string, ExecuteOptions]>([
-  ['from string value', { xml: '<a/>', xsltPath: aXslPath }],
-  ['from Buffer value', { xml: Buffer.from('<a/>'), xsltPath: aXslPath }],
-  ['from file via path', { xmlPath: aXmlPath, xsltPath: aXslPath }],
+  ['from string value', {xml: '<a/>', xsltPath: aXslPath}],
+  ['from Buffer value', {xml: Buffer.from('<a/>'), xsltPath: aXslPath}],
+  ['from file via path', {xmlPath: aXmlPath, xsltPath: aXslPath}],
   [
     'from file via system identifier',
-    { systemIdentifier: aXmlURI, xsltPath: aXslPath },
+    {systemIdentifier: aXmlURI, xsltPath: aXslPath},
   ],
 ])(
   'execute() transforms XML %s with XSLT',
@@ -57,12 +57,12 @@ test.each<[string, ExecuteOptions]>([
 );
 
 test.each<[ExecuteOptions, string]>([
-  [{ xml: '<a/>', xsltPath: baseURIXslPath }, ''],
+  [{xml: '<a/>', xsltPath: baseURIXslPath}, ''],
   [
-    { xml: '<a/>', systemIdentifier: 'foo:///bar', xsltPath: baseURIXslPath },
+    {xml: '<a/>', systemIdentifier: 'foo:///bar', xsltPath: baseURIXslPath},
     'foo:///bar',
   ],
-  [{ xmlPath: aXmlPath, xsltPath: baseURIXslPath }, aXmlURI],
+  [{xmlPath: aXmlPath, xsltPath: baseURIXslPath}, aXmlURI],
   [
     {
       xmlPath: aXmlPath,
@@ -71,7 +71,7 @@ test.each<[ExecuteOptions, string]>([
     },
     'foo:///bar',
   ],
-  [{ systemIdentifier: aXmlURI, xsltPath: baseURIXslPath }, aXmlURI],
+  [{systemIdentifier: aXmlURI, xsltPath: baseURIXslPath}, aXmlURI],
 ])(
   'execute() with options: %j uses base URI: %s',
   async (options, expectedBase) => {
@@ -87,19 +87,19 @@ test.each<[ExecuteOptions, string]>([
 
 test.each<[ExecuteOptions, string]>([
   [
-    { xml: '<a/>', xsltPath: aXslPath, parameters: { thing: [] } },
+    {xml: '<a/>', xsltPath: aXslPath, parameters: {thing: []}},
     '<result><a/></result>',
   ],
   [
-    { xml: '<a/>', xsltPath: aXslPath, parameters: { thing: 'foo' } },
+    {xml: '<a/>', xsltPath: aXslPath, parameters: {thing: 'foo'}},
     '<result thing="foo"><a/></result>',
   ],
   [
-    { xml: '<a/>', xsltPath: aXslPath, parameters: { thing: ['foo'] } },
+    {xml: '<a/>', xsltPath: aXslPath, parameters: {thing: ['foo']}},
     '<result thing="foo"><a/></result>',
   ],
   [
-    { xml: '<a/>', xsltPath: aXslPath, parameters: { thing: ['foo', 'bar'] } },
+    {xml: '<a/>', xsltPath: aXslPath, parameters: {thing: ['foo', 'bar']}},
     '<result thing="foo bar"><a/></result>',
   ],
   [
@@ -142,7 +142,7 @@ test.each<[ExecuteOptions, string]>([
 test('execute() transforms XML with XSLT (without async)', () => {
   const result = using(XSLTExecutor.getInstance(), executor => {
     return executor
-      .execute({ xml: '<foo>hi</foo>', xsltPath: aXslPath })
+      .execute({xml: '<foo>hi</foo>', xsltPath: aXslPath})
       .then(buffer => buffer.toString());
   });
 
@@ -154,7 +154,7 @@ test('execute() transforms XML with XSLT (without async)', () => {
 test('execute() rejects with UserError on invalid input data', async () => {
   const result = using(XSLTExecutor.getInstance(), async executor => {
     const invalidXml = '<a>...';
-    return executor.execute({ xml: invalidXml, xsltPath: aXslPath });
+    return executor.execute({xml: invalidXml, xsltPath: aXslPath});
   });
 
   await expect(result).rejects.toThrow(UserError);
@@ -174,8 +174,10 @@ test('execute() rejects with UserError on syntactically invalid XSLT', async () 
 
   await expect(result).rejects.toThrow(UserError);
   await expect(result).rejects.toThrow(
-    new RegExp(`\
-^XSLT evaluation produced an error: Failed to compile XSLT: Error on line \\d+ column \\d+ of invalid-syntax.xsl:`)
+    new RegExp(
+      '\
+^XSLT evaluation produced an error: Failed to compile XSLT: Error on line \\d+ column \\d+ of invalid-syntax.xsl:'
+    )
   );
 });
 
@@ -195,9 +197,9 @@ test('execute() rejects with UserError when execution of XSLT raises an error', 
 });
 
 test('execute() cannot be invoked after executor is closed', async () => {
-  const executor = XSLTExecutor.getInstance({ jvmProcessID: nextProcessID() });
+  const executor = XSLTExecutor.getInstance({jvmProcessID: nextProcessID()});
   await executor.close();
-  const result = executor.execute({ xml: '<a/>', xsltPath: aXslPath });
+  const result = executor.execute({xml: '<a/>', xsltPath: aXslPath});
 
   await expect(result).rejects.toThrow(
     new Error('execute() called following close()')
@@ -206,7 +208,7 @@ test('execute() cannot be invoked after executor is closed', async () => {
 
 test('execute() rejects with InternalError when unable to connect to the nailgun server', async () => {
   const result = using(
-    XSLTExecutor.getInstance({ jvmProcessID: nextProcessID() }),
+    XSLTExecutor.getInstance({jvmProcessID: nextProcessID()}),
     async executor => {
       const serverProcess: JVMProcess = await executor['serverProcessRef']
         .resource;
@@ -220,7 +222,7 @@ test('execute() rejects with InternalError when unable to connect to the nailgun
         )
       );
 
-      return executor.execute({ xml: '<a/>', xsltPath: aXslPath });
+      return executor.execute({xml: '<a/>', xsltPath: aXslPath});
     }
   );
 
@@ -230,26 +232,26 @@ test('execute() rejects with InternalError when unable to connect to the nailgun
   );
 });
 
-test(`execute() rejects with InternalError when the nailgun server doesn't start within the timeout`, async () => {
+test("execute() rejects with InternalError when the nailgun server doesn't start within the timeout", async () => {
   const result = using(
     XSLTExecutor.getInstance({
       jvmProcessID: nextProcessID(),
       jvmStartupTimeout: 1,
     }),
     async executor => {
-      return executor.execute({ xml: '<a/>', xsltPath: aXslPath });
+      return executor.execute({xml: '<a/>', xsltPath: aXslPath});
     }
   );
 
   await expect(result).rejects.toThrow(InternalError);
   await expect(result).rejects.toThrow(
-    `xslt-nailgun server process failed to start: 1ms startup timeout expired; stderr: ''`
+    "xslt-nailgun server process failed to start: 1ms startup timeout expired; stderr: ''"
   );
 });
 
 test('execute() rejects with InternalError when nailgun server closes before execution is complete', async () => {
   const result = using(
-    XSLTExecutor.getInstance({ jvmProcessID: nextProcessID() }),
+    XSLTExecutor.getInstance({jvmProcessID: nextProcessID()}),
     async executor => {
       const serverProcess: JVMProcess = await executor['serverProcessRef']
         .resource;
@@ -296,12 +298,12 @@ test('concurrent execute()', async () => {
 });
 
 async function runTransform(keepAliveTimeout: number): Promise<number> {
-  const { pid, result } = await using(
-    XSLTExecutor.getInstance({ jvmKeepAliveTimeout: keepAliveTimeout }),
+  const {pid, result} = await using(
+    XSLTExecutor.getInstance({jvmKeepAliveTimeout: keepAliveTimeout}),
     async executor => {
       return {
         pid: getNailgunServerPID(executor),
-        result: executor.execute({ xml: '<a/>', xsltPath: aXslPath }),
+        result: executor.execute({xml: '<a/>', xsltPath: aXslPath}),
       };
     }
   );
