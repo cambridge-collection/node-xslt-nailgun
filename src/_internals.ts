@@ -764,7 +764,7 @@ nailgun server's stderr will no longer be monitored as the server has started an
     const timer = _timeout(6000, 'timeout');
     const result = await Promise.race([
       this.processExit.catch(() => undefined),
-      timer.finished,
+      timer,
     ]);
     if (result === 'timeout') {
       DEBUG.jvmProcess(
@@ -811,20 +811,23 @@ received our node process's 'exit' event, but our nailgun server hasn't been kil
   }
 }
 
-function _timeout<T>(ms: number, value?: T): {finished: Promise<T>} & Closable {
-  let resolve: () => void;
+function _timeout<T extends undefined>(
+  ms: number,
+  value?: T
+): PromiseLike<T> & Closable;
+function _timeout<T>(ms: number, value: T): PromiseLike<T> & Closable;
+function _timeout<T>(ms: number, value: T): PromiseLike<T> & Closable {
   let id: Timeout;
-  const close = () => {
-    clearTimeout(id);
-    resolve();
-  };
-  return {
-    close,
-    finished: new Promise<T>(_resolve => {
-      resolve = _resolve;
-      id = setTimeout(_resolve, ms, value);
-    }),
-  };
+  let close: undefined | (() => Promise<void> | void) = undefined;
+  const finished = new Promise<T>(resolve => {
+    id = setTimeout(resolve, ms, value);
+    close = () => {
+      clearTimeout(id);
+      resolve(value);
+    };
+  });
+  assert(close !== undefined);
+  return {close, then: finished.then.bind(finished)};
 }
 export {_timeout as timeout};
 
