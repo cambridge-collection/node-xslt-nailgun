@@ -1,0 +1,29 @@
+ARG NODE_VERSION=v10.23.0
+ARG JAVA_VERSION=11-slim-buster
+ARG MAVEN_VERSION=3.6.3
+ARG MAVEN_URL=https://www.mirrorservice.org/sites/ftp.apache.org/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz
+ARG MAVEN_SHA512=c35a1803a6e70a126e80b2b3ae33eed961f83ed74d18fcd16909b2d44d7dada3203f1ffe726c17ef8dcca2dcaa9fca676987befeadc9b9f759967a8cb77181c0
+
+FROM debian:buster as node
+ARG NODE_VERSION
+RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates
+RUN curl -o /tmp/install.sh https://raw.githubusercontent.com/nvm-sh/nvm/v0.37.0/install.sh
+RUN bash /tmp/install.sh
+ENV NVM_DIR="/root/.nvm"
+RUN . $NVM_DIR/nvm.sh && nvm install $NODE_VERSION
+RUN find /root/.nvm/versions -type d && echo hi
+
+FROM curlimages/curl:7.73.0 as maven
+ARG MAVEN_URL
+ARG MAVEN_SHA512
+RUN curl --fail --output /tmp/maven.tar.gz "$MAVEN_URL"
+RUN echo "/tmp/maven.tar.gz  $MAVEN_SHA512" sha512sum -c -
+RUN tar x -f /tmp/maven.tar.gz -C /tmp
+
+FROM openjdk:$JAVA_VERSION
+ARG NODE_VERSION
+ARG MAVEN_VERSION
+COPY --from=node /root/.nvm/versions/node/$NODE_VERSION/ /opt/node/
+COPY --from=maven /tmp/apache-maven-$MAVEN_VERSION /opt/apache-maven-$MAVEN_VERSION
+ENV PATH=/opt/node/bin:/opt/apache-maven-$MAVEN_VERSION/bin:$PATH
+WORKDIR /code
