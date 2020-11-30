@@ -207,11 +207,14 @@ class AutoCloserHooks {
    * Triggered when the calling close() on the AutoCloser's resource fails, but there's no direct caller to propagate
    * the error to. For example, when the close() was initiated via a timer.
    */
-  readonly asyncCloseError = new SyncBailHook<Error>(['error']);
+  readonly asyncCloseError = new SyncBailHook<Error, unknown>(
+    ['error'],
+    'asyncCloseError'
+  );
   /** Triggered when the AutoCloser has marked itself as closed, but before it closes its resource. */
-  readonly closing = new SyncHook();
+  readonly closing = new SyncHook<[]>([], 'closing');
   /** Triggered once the AutoCloser has closed its resource. */
-  readonly closed = new SyncHook();
+  readonly closed = new SyncHook<[]>([], 'closed');
 }
 
 interface AutoCloser<T extends Closable> {
@@ -221,8 +224,11 @@ interface AutoCloser<T extends Closable> {
 }
 
 class KeepAliveStrategyHooks {
-  readonly dead = new AsyncParallelHook();
-  readonly asyncCloseError = new SyncBailHook<Error>(['error']);
+  readonly dead = new AsyncParallelHook<[]>([], 'dead');
+  readonly asyncCloseError = new SyncBailHook<Error, unknown>(
+    ['error'],
+    'asyncCloseError'
+  );
 
   constructor() {
     // Throw errors by default if nobody taps asyncCloseError
@@ -405,8 +411,14 @@ export class TimeoutKeepAliveStrategy<
 }
 
 export class DefaultAutoCloserKeepAliveHooks<T extends Closable> {
-  readonly refOpened = new SyncHook<AutoCloserReference<T>>(['ref']);
-  readonly refClosed = new AsyncParallelHook<AutoCloserReference<T>>(['ref']);
+  readonly refOpened = new SyncHook<AutoCloserReference<T>>(
+    ['ref'],
+    'refOpened'
+  );
+  readonly refClosed = new AsyncParallelHook<AutoCloserReference<T>>(
+    ['ref'],
+    'refClosed'
+  );
 }
 
 export class DefaultAutoCloser<T extends Closable> implements AutoCloser<T> {
@@ -840,9 +852,10 @@ class XSLTNailgunHooks {
    * Triggered if a JVM process fails to shutdown when being terminated outside an execute() call, e.g. being
    * terminated as the result of a keep alive timeout expiring after an execute() call has completed.
    */
-  readonly asyncJVMShutdownError = new SyncBailHook<Error, StrictCreateOptions>(
-    ['error', 'options']
-  );
+  readonly asyncJVMShutdownError = new SyncBailHook<
+    [Error, StrictCreateOptions],
+    unknown
+  >(['error', 'options'], 'asyncJVMShutdownError');
 
   constructor() {
     const options = {
