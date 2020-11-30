@@ -5,4 +5,6 @@ module.exports = {
     '^./vendor/(.*)': '<rootDir>/lib/vendor/$1',
   },
   modulePathIgnorePatterns: ['<rootDir>/build/'],
+  slowTestThreshold: 10,
+  testTimeout: 15 * 1000,
 };
