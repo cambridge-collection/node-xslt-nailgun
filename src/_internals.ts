@@ -179,6 +179,8 @@ export interface JVMProcessOptions
   debug?: boolean;
 }
 
+export const DEFAULT_JVM_STARTUP_TIMEOUT = 10 * 1000;
+
 function populateDefaults(options: CreateOptions): StrictCreateOptions {
   return {
     jvmExecutable:
@@ -191,7 +193,7 @@ function populateDefaults(options: CreateOptions): StrictCreateOptions {
         : options.jvmKeepAliveTimeout,
     jvmStartupTimeout:
       options.jvmStartupTimeout === undefined
-        ? 2000
+        ? DEFAULT_JVM_STARTUP_TIMEOUT
         : options.jvmStartupTimeout,
   };
 }
