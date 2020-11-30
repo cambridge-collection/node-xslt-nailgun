@@ -52,9 +52,16 @@ Documentation](https://bitbucket.org/bjconlan/jvmpin/raw/master/lib/jvmpin.js)
 ## Testing
 
 To run the test suite, clone the repository and run:
+
+```
+$ docker-compose run test
+```
+
+Alternatively, they can be run locally:
+
 ```console
 $ npm install
-$ test/run-tests.sh
+$ npm run test
 ```
 
 ## Contributors
@@ -62,6 +69,8 @@ $ test/run-tests.sh
 [Eric McCarthy](http://limulus.net/)
 
 [Markus Hedvall](https://bitbucket.org/markushedvall/)
+
+[Hal Blackburn](https://github.com/h4l)
 
 
 ## License
