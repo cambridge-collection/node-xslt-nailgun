@@ -2,6 +2,7 @@ import glob from 'glob';
 import {tmpName} from 'tmp-promise';
 import {using} from '../src';
 import {
+  DEFAULT_JVM_STARTUP_TIMEOUT,
   AddressType,
   getClasspath,
   IPServerAddress,
@@ -49,7 +50,7 @@ test.each<[Partial<JVMProcessOptions>, string]>([
         listenAddress: path,
         classpath: getClasspath(),
         jvmExecutable: 'java',
-        jvmStartupTimeout: 2000,
+        jvmStartupTimeout: DEFAULT_JVM_STARTUP_TIMEOUT,
         ...options,
       }),
       async jvmProcess => {
@@ -70,7 +71,7 @@ test('JVMProcess serverStarted Promise resolves when server has started', async 
       listenAddress: path,
       classpath: getClasspath(),
       jvmExecutable: 'java',
-      jvmStartupTimeout: 2000,
+      jvmStartupTimeout: DEFAULT_JVM_STARTUP_TIMEOUT,
     }),
     async jvmProcess => {
       // resolves with listening address when started
@@ -91,7 +92,7 @@ test('listeningOnRandomPort() creates server on automatically-chosen port', asyn
     JVMProcess.listeningOnRandomPort({
       jvmExecutable: 'java',
       classpath: getClasspath(),
-      jvmStartupTimeout: 2000,
+      jvmStartupTimeout: DEFAULT_JVM_STARTUP_TIMEOUT,
     }),
     async proc => {
       const address = await proc.serverStarted;
@@ -114,7 +115,7 @@ test('child process streams are no longer open after startup', async () => {
     JVMProcess.listeningOnRandomPort({
       jvmExecutable: 'java',
       classpath: getClasspath(),
-      jvmStartupTimeout: 2000,
+      jvmStartupTimeout: DEFAULT_JVM_STARTUP_TIMEOUT,
     }),
     async proc => {
       await proc.serverStarted;
@@ -132,7 +133,7 @@ test('child process stderr stays open if debug is enabled', async () => {
     JVMProcess.listeningOnRandomPort({
       jvmExecutable: 'java',
       classpath: getClasspath(),
-      jvmStartupTimeout: 2000,
+      jvmStartupTimeout: DEFAULT_JVM_STARTUP_TIMEOUT,
       debug: true,
     }),
     async proc => {
@@ -152,7 +153,7 @@ test('child process is killed on process exit', async () => {
     JVMProcess.listeningOnRandomPort({
       jvmExecutable: 'java',
       classpath: getClasspath(),
-      jvmStartupTimeout: 2000,
+      jvmStartupTimeout: DEFAULT_JVM_STARTUP_TIMEOUT,
     }),
     async proc => {
       const exitHandler = proc['boundOnProcessExit'];
