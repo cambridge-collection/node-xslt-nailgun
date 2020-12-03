@@ -1,0 +1,116 @@
+name: Node.js CI
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: 10.x
+      - name: Set up JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+          java-package: jdk
+      - name: Cache local Maven repository
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Cache npm's local cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - name: Compile java and typescrit, and assemble NPM package
+        run: make
+        env:
+          # Don't require toolchains.xml as we know the exact Java version
+          DISABLE_MAVEN_TOOLCHAIN: true
+      - name: Upload jars
+        uses: actions/upload-artifact@v2
+        with:
+          name: jars
+          path: java/target/jars/
+      - name: Upload NPM package
+        uses: actions/upload-artifact@v2
+        with:
+          name: npm-package
+          path: build/lib.cam-xslt-nailgun-*.tgz
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [10.x, 12.x, 14.x]
+        java-version: [11, 15]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Set up JRE ${{ matrix.java-version }}
+        uses: actions/setup-java@v1
+        with:
+          java-version: ${{ matrix.java-version }}
+          java-package: jre
+      - name: Cache npm's local cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - name: Download jars from build
+        uses: actions/download-artifact@v2
+        with:
+          name: jars
+          path: java/target/jars/
+      - run: npm ci
+      - run: npm test
+
+  integration_test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [ 10.x, 12.x, 14.x ]
+        java-version: [ 11, 15 ]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Set up JRE ${{ matrix.java-version }}
+        uses: actions/setup-java@v1
+        with:
+          java-version: ${{ matrix.java-version }}
+          java-package: jre
+      - name: Cache npm's local cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - name: Download npm-package from build
+        uses: actions/download-artifact@v2
+        with:
+          name: npm-package
+          path: build/
+      - run: integration-test/run-all.sh
+      - run: examples/run-all.sh
