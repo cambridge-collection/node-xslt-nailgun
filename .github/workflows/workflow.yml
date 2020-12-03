@@ -17,14 +17,16 @@ jobs:
           java-version: 11
           java-package: jdk
       - run: make
-      - uses: actions/upload-artifact@v2
+      - name: Upload jars
+        uses: actions/upload-artifact@v2
         with:
           name: jars
           path: java/target/jars/
-      - uses: actions/upload-artifact@v2
-          with:
-            name: npm-package
-            path: build/lib.cam-xslt-nailgun-*.tgz
+      - name: Upload NPM package
+        uses: actions/upload-artifact@v2
+        with:
+          name: npm-package
+          path: build/lib.cam-xslt-nailgun-*.tgz
   test:
     needs: build
     runs-on: ubuntu-latest
