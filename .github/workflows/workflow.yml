@@ -76,9 +76,9 @@ jobs:
           java-version: ${{ matrix.node-version }}
           java-package: jre
       - name: Download npm-package from build
-          uses: actions/download-artifact@v2
-          with:
-            name: npm-package
-            path: dist/
+        uses: actions/download-artifact@v2
+        with:
+          name: npm-package
+          path: dist/
       - run: integration-test/run-all.sh
       - run: examples/run-all.sh
