@@ -121,6 +121,7 @@ jobs:
 
   publish:
 #    needs: [test, integration_test]
+    if: ${{ github.event_name == 'release' }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo ${{ toJson(github) }}
+      - run: echo '${{ toJson(github) }}'
