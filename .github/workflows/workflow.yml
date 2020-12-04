@@ -16,7 +16,11 @@ jobs:
         with:
           java-version: 11
           java-package: jdk
-      - run: make
+      - name: Compile java and typescrit, and assemble NPM package
+        run: make
+        env:
+          # Don't require toolchains.xml as we know the exact Java version
+          DISABLE_MAVEN_TOOLCHAIN: true
       - name: Upload jars
         uses: actions/upload-artifact@v2
         with:

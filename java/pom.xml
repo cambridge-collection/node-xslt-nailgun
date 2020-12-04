@@ -18,14 +18,12 @@
     </properties>
 
     <profiles>
-        <!-- Disable the toolchain plugin if the desired JDK is already being used.
-             This avoids the need to configure toolchains.xml in CI builds where
-             the JDK version is explicitly controlled. -->
+        <!-- Allow disabling the toolchain plugin, e.g. if the desired JDK is
+             already being used. This avoids the need to configure
+             toolchains.xml in CI builds where the JDK version is explicitly
+             controlled. -->
         <profile>
-            <id>using-desired-jdk-version</id>
-            <activation>
-                <jdk>[${uk.ac.cam.lib.cudl.xslt-nail.javaVersion},${uk.ac.cam.lib.cudl.xslt-nail.javaVersion}.999]</jdk>
-            </activation>
+            <id>disable-toolchain</id>
             <build>
                 <plugins>
                     <plugin>
