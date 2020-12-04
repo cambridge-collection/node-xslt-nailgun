@@ -138,5 +138,5 @@ jobs:
           path: build/
       - name: Publish NPM package
         run: npm publish ./build/lib.cam-xslt-nailgun-*.tgz --access public --dry-run
-          env:
-            NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
