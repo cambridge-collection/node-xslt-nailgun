@@ -27,7 +27,8 @@
     "_prepack": "[ \"$(git status --porcelain)\" = '' ] || [ \"$ALLOW_BUILD_WITH_DIRTY_FILES\" = true ] || exit 1",
     "check": "gts check",
     "fix": "gts fix",
-    "posttest": "npm run check"
+    "posttest": "npm run check",
+    "get-publish-dist-tag": "node -e \"console.log(require('semver').parse(require('./package.json').version).prerelease.length == 0 ? 'latest' : 'prerelease')\""
   },
   "author": {
     "name": "Hal Blackburn",
@@ -48,6 +49,7 @@
     "jest": "^26.6.3",
     "jest-junit": "^12.0.0",
     "jest-xml-matcher": "^1.2.0",
+    "semver": "^7.3.4",
     "supports-color": "^8.0.0",
     "tmp-promise": "^3.0.2",
     "ts-jest": "^26.4.4",
