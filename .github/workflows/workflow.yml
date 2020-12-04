@@ -11,7 +11,7 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: 10.x
-      - name: Set up JDK 1.8
+      - name: Set up JDK
         uses: actions/setup-java@v1
         with:
           java-version: 11
