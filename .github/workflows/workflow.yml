@@ -129,7 +129,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v1
         with:
-          node-version: ${{ 14.x }}
+          node-version: 14.x
           registry-url: 'https://registry.npmjs.org'
       - name: Download npm-package from build
         uses: actions/download-artifact@v2
