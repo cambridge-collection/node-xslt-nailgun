@@ -114,3 +114,26 @@ jobs:
           path: build/
       - run: integration-test/run-all.sh
       - run: examples/run-all.sh
+
+  publish:
+    name: Publish NPM package for published GitHub releases
+    needs: [test, integration_test]
+    # Only publish when tags matching v* are pushed
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14.x
+          registry-url: 'https://registry.npmjs.org'
+      - name: Download npm-package from build
+        uses: actions/download-artifact@v2
+        with:
+          name: npm-package
+          path: build/
+      - name: Publish NPM package
+        run: npm publish ./build/lib.cam-xslt-nailgun-*.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
