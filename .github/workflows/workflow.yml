@@ -65,6 +65,13 @@ jobs:
         with:
           java-version: ${{ matrix.java-version }}
           java-package: jre
+      - name: Fetch npm's local cache from build job
+          uses: actions/cache@v2
+          with:
+            path: ~/.npm
+            restore-keys: |
+              ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+              ${{ runner.os }}-node-
       - name: Download jars from build
         uses: actions/download-artifact@v2
         with:
@@ -93,6 +100,13 @@ jobs:
         with:
           java-version: ${{ matrix.java-version }}
           java-package: jre
+      - name: Fetch npm's local cache from build job
+          uses: actions/cache@v2
+          with:
+            path: ~/.npm
+            restore-keys: |
+              ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+              ${{ runner.os }}-node-
       - name: Download npm-package from build
         uses: actions/download-artifact@v2
         with:
