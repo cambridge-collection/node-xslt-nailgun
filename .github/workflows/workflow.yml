@@ -59,10 +59,10 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Set up JRE ${{ matrix.node-version }}
+      - name: Set up JRE ${{ matrix.java-version }}
         uses: actions/setup-java@v1
         with:
-          java-version: ${{ matrix.node-version }}
+          java-version: ${{ matrix.java-version }}
           java-package: jre
       - name: Download jars from build
         uses: actions/download-artifact@v2
@@ -87,15 +87,15 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Set up JRE ${{ matrix.node-version }}
+      - name: Set up JRE ${{ matrix.java-version }}
         uses: actions/setup-java@v1
         with:
-          java-version: ${{ matrix.node-version }}
+          java-version: ${{ matrix.java-version }}
           java-package: jre
       - name: Download npm-package from build
         uses: actions/download-artifact@v2
         with:
           name: npm-package
-          path: dist/
+          path: build/
       - run: integration-test/run-all.sh
       - run: examples/run-all.sh
