@@ -1,6 +1,10 @@
 SHELL = /bin/bash
 .SHELLFLAGS=-o errexit -c
 
+ifeq ($(DISABLE_MAVEN_TOOLCHAIN), true)
+	MAVEN_ARGS = -P disable-toolchain
+endif
+
 all: clean pack
 
 include docker-compose.mk
@@ -9,7 +13,7 @@ compile-typescript: install
 	npm run build
 
 compile-java:
-	mvn --batch-mode --file java/pom.xml verify
+	mvn $(MAVEN_ARGS) --batch-mode --file java/pom.xml verify
 
 build/dist-root/jars: build/dist-root compile-java
 	cp -a java/target/jars build/dist-root/

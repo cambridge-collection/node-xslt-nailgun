@@ -17,6 +17,30 @@
         <dependency-jars-dir>${project.build.directory}/jars</dependency-jars-dir>
     </properties>
 
+    <profiles>
+        <!-- Allow disabling the toolchain plugin, e.g. if the desired JDK is
+             already being used. This avoids the need to configure
+             toolchains.xml in CI builds where the JDK version is explicitly
+             controlled. -->
+        <profile>
+            <id>disable-toolchain</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-toolchains-plugin</artifactId>
+                        <version>1.1</version>
+                        <executions>
+                            <execution>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
     <build>
         <plugins>
             <plugin>
