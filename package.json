@@ -8,12 +8,12 @@
     "java",
     "jvm"
   ],
-  "homepage": "https://bitbucket.org/CUDL/node-xslt-nailgun",
+  "homepage": "https://github.com/cambridge-collection/node-xslt-nailgun",
   "bugs": {
-    "url": "https://bitbucket.org/CUDL/node-xslt-nailgun/issues"
+    "url": "https://github.com/cambridge-collection/node-xslt-nailgun/issues"
   },
   "license": "MIT",
-  "repository": "bitbucket:CUDL/node-xslt-nailgun",
+  "repository": "github:cambridge-collection/node-xslt-nailgun",
   "engines": {
     "node": ">=v10"
   },
