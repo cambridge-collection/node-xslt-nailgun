@@ -142,6 +142,6 @@ jobs:
           name: npm-package
           path: build/
       - name: Publish NPM package
-        run: npm publish ./build/lib.cam-xslt-nailgun-*.tgz --dry-run --access public --tag "$(npm run --silent get-publish-dist-tag)"
+        run: npm publish ./build/lib.cam-xslt-nailgun-*.tgz --access public --tag "$(npm run --silent get-publish-dist-tag)"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
