@@ -3,9 +3,11 @@ package uk.ac.cam.lib.cudl.xsltnail
 import org.xmlunit.builder.Input
 import spock.lang.Specification
 
+import java.nio.file.Files
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
+import static groovy.util.GroovyCollections.combinations
 import static org.xmlunit.matchers.CompareMatcher.isSimilarTo
 import static spock.util.matcher.HamcrestSupport.expect
 
@@ -44,15 +46,18 @@ class XSLTNailIntegration extends Specification {
         serverProc?.destroyForcibly()
     }
 
-    def launchServer(List<String> options = [], boolean awaitStartup = true) {
+    def launchServer(List<String> options = [], boolean awaitStartup = true, Map<String, String> environment = [:]) {
         def startedSignal = new CompletableFuture().completeOnTimeout(false, 5, TimeUnit.SECONDS)
 
         // Run the server and wait for it to be listening
-        Process serverProc = (
-                ["java", "-cp", serverClasspath, "uk.ac.cam.lib.cudl.xsltnail.XSLTNailgunServer"] +
-                        options +
-                        ["localhost:${port}"]
-        ).execute()
+        def builder = new ProcessBuilder(
+            (["java", "-cp", serverClasspath, "uk.ac.cam.lib.cudl.xsltnail.XSLTNailgunServer"] +
+                options + ["localhost:${port}"]) as String[])
+        // Don't inherit environment variables
+        builder.environment().clear()
+        builder.environment().putAll(environment)
+        def serverProc = builder.start()
+
         // consume and ignore stderr
         Thread.start { serverProc.getErrorStream().eachLine("UTF-8", serverStderrLines::add) }
         Thread.start {
@@ -136,5 +141,25 @@ class XSLTNailIntegration extends Specification {
 
         cleanup:
         requiredProc?.destroyForcibly()
+    }
+
+    def "logs are written to file when XSLT_NAILGUN_SERVER_LOG_FILE is in environment"() {
+      given:
+      def tmpFile = Files.createTempFile("xslt-nailgun-", ".log")
+      def serverProc = launchServer(["--log-level", "FINEST"], true, [XSLT_NAILGUN_SERVER_LOG_FILE: tmpFile.toString()])
+      serverProc.supportsNormalTermination()
+
+      when:
+      serverProc.destroy()
+      serverProc.onExit().get(5, TimeUnit.SECONDS)
+
+      then:
+      Files.exists(tmpFile)
+      Files.readAllLines(tmpFile).find {it.contains("FINEST ${serverProc.pid()} uk.ac.cam.lib.cudl.xsltnail.ShutdownManager\$AbstractDefaultShutdownManager lambda\$onShutdown\$1 NGServer has stopped running") }
+
+      cleanup:
+      if(tmpFile) {
+        Files.deleteIfExists(tmpFile)
+      }
     }
 }

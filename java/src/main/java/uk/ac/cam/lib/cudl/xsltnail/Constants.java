@@ -1,5 +1,7 @@
 package uk.ac.cam.lib.cudl.xsltnail;
 
+import io.vavr.API;
+import io.vavr.collection.Set;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -15,6 +17,10 @@ public final class Constants {
 
   public static final String VERSION = "0.0.0";
   public static final long SHUTDOWN_GRACE_PERIOD = 1000 * 5;
+
+  public static final String LOG_LEVEL_ENVAR = "XSLT_NAILGUN_SERVER_LOG_LEVEL";
+  public static final String LOG_DESTINATION_FILE_ENVAR = "XSLT_NAILGUN_SERVER_LOG_FILE";
+  public static final Set<String> ENVARS = API.Set(LOG_LEVEL_ENVAR, LOG_DESTINATION_FILE_ENVAR);
 
   // Docopt doesn't provide a way to get at just the usage section of the
   // parsed help (which we need when manually printing usage), so we have to

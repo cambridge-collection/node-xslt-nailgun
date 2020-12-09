@@ -25,6 +25,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
+import java.util.logging.Logger;
 import javax.annotation.Nonnull;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
@@ -32,8 +33,7 @@ import net.sf.saxon.s9api.*;
 import net.sf.saxon.value.UntypedAtomicValue;
 
 public class XSLTNail implements AutoCloseable {
-  private static final java.util.logging.Logger LOG =
-      java.util.logging.Logger.getLogger(XSLTNail.class.getName());
+  private static final Logger LOG = Logger.getLogger(XSLTNail.class.getName());
 
   private static final Cache<NGServer, XSLTNail> NAILS = Caffeine.newBuilder().weakKeys().build();
 

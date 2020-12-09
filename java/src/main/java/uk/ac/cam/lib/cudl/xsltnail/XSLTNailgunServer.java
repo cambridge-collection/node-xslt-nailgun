@@ -6,13 +6,13 @@ import static uk.ac.cam.lib.cudl.xsltnail.Values.requireKey;
 
 import com.facebook.nailgun.Alias;
 import com.facebook.nailgun.AliasManager;
-import com.facebook.nailgun.NGCommunicator;
 import com.facebook.nailgun.NGConstants;
 import com.facebook.nailgun.NGListeningAddress;
 import com.facebook.nailgun.NGServer;
-import com.facebook.nailgun.NGSession;
 import com.facebook.nailgun.builtins.NGStop;
+import io.vavr.PartialFunction;
 import io.vavr.Predicates;
+import io.vavr.Tuple;
 import io.vavr.collection.HashMap;
 import io.vavr.collection.Map;
 import io.vavr.collection.Stream;
@@ -20,9 +20,8 @@ import io.vavr.control.Option;
 import io.vavr.control.Try;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -47,10 +46,20 @@ public final class XSLTNailgunServer {
             .parse(args));
   }
 
+  static Map<String, String> getEnvironmentVariables(java.util.Map<String, String> environ) {
+    return Stream.ofAll(Constants.ENVARS)
+        .map(name -> Option.of(environ.get(name)).map(value -> Tuple.of(name, value)))
+        .collect(PartialFunction.getIfDefined())
+        .collect(HashMap.collector());
+  }
+
   public static void main(String[] args) {
+    System.setProperty(
+        "java.util.logging.manager", Logging.DisabledResetLogManager.class.getName());
     try {
       main(
           handleServerCLIArgs(args),
+          getEnvironmentVariables(System.getenv()),
           address ->
               new NGServer(
                   address, NGServer.DEFAULT_SESSIONPOOLSIZE, NGConstants.HEARTBEAT_TIMEOUT_MILLIS));
@@ -61,18 +70,31 @@ public final class XSLTNailgunServer {
     }
   }
 
-  static void main(io.vavr.collection.Map<String, Object> args, ServerFactory serverFactory) {
-    configureLogging(
-        Values.ifString(requireKey(args, "--log-level").get())
+  static void main(
+      Map<String, Object> args, Map<String, String> environment, ServerFactory serverFactory) {
+    Logging.configureLogging(
+        environment
+            .get(Constants.LOG_LEVEL_ENVAR)
+            .map(level -> Tuple.of(level, Constants.LOG_LEVEL_ENVAR))
+            .orElse(
+                () ->
+                    requireKey(args, "--log-level")
+                        .toOption()
+                        .flatMap(Values::ifString)
+                        .map(level -> Tuple.of(level, "--log-level")))
             .map(
                 level -> {
                   try {
-                    return Level.parse(level);
+                    return Level.parse(level._1());
                   } catch (IllegalArgumentException e) {
-                    throw new FatalError(format("Invalid --log-level: %s", level), e);
+                    throw new FatalError(format("Invalid %s: %s", level._2(), level._1()), e);
                   }
                 })
-            .getOrElse(Level.WARNING));
+            .getOrElse(Level.WARNING),
+        environment
+            .get(Constants.LOG_DESTINATION_FILE_ENVAR)
+            .filter(val -> !val.isEmpty())
+            .map(Path::of));
 
     NGListeningAddress listenAddress = getAddress(args);
     NGServer server = serverFactory.createServer(listenAddress);
@@ -105,14 +127,21 @@ public final class XSLTNailgunServer {
                           return null;
                         }));
 
+    Logger shutdownLogger = Logger.getLogger(XSLTNailgunServer.class.getName() + "#ShutdownHook");
+    Logging.DisabledResetLogManager.getIfInUse()
+        .peek(Logging.DisabledResetLogManager::disableReset);
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread(
                 () -> {
+                  shutdownLogger.log(Level.FINE, "Shutdown hook starting");
                   try {
                     shutdownManager.shutdown().toCompletableFuture().get();
                   } catch (InterruptedException | ExecutionException e) {
+                    shutdownLogger.log(Level.SEVERE, "ShutdownManager.shutdown() failed", e);
                     throw new RuntimeException("Nailgun server shutdown failed", e);
+                  } finally {
+                    Logging.DisabledResetLogManager.getIfInUse().peek(m -> m.reset(true));
                   }
                 }));
 
@@ -168,22 +197,6 @@ public final class XSLTNailgunServer {
             .getOrElse(() -> AddressType.guessAddressType(address));
 
     return type.parseAddress(address);
-  }
-
-  private static void configureLogging(Level level) {
-    Logger ngLog = Logger.getLogger("com.facebook.nailgun");
-    Logger xsltNgLog = Logger.getLogger(XSLTNailgunServer.class.getPackageName());
-    ngLog.setLevel(level);
-    xsltNgLog.setLevel(level);
-    ngLog.setUseParentHandlers(false);
-    xsltNgLog.setUseParentHandlers(false);
-    Handler handler = new ConsoleHandler();
-    ngLog.addHandler(handler);
-    xsltNgLog.addHandler(handler);
-    Logger.getLogger(NGServer.class.getName()).setLevel(level);
-    Logger.getLogger(NGSession.class.getName()).setLevel(level);
-    Logger.getLogger(NGCommunicator.class.getName()).setLevel(level);
-    Logger.getLogger(DefaultAutomaticShutdownManager.class.getName()).setLevel(level);
   }
 
   private enum AddressType {

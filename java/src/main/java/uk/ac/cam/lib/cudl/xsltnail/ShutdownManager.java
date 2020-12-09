@@ -9,6 +9,8 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.immutables.value.Value;
 
 public interface ShutdownManager {
@@ -25,6 +27,8 @@ public interface ShutdownManager {
   @Value.Immutable()
   @Value.Style(typeImmutable = "*")
   abstract class AbstractDefaultShutdownManager implements ShutdownManager {
+    private static final Logger LOGGER = Logger.getLogger(DefaultShutdownManager.class.getName());
+
     @Value.Default
     @Override
     public long gracePeriod() {
@@ -57,6 +61,7 @@ public interface ShutdownManager {
 
     @Value.Lazy
     CompletableFuture<Void> onShutdown() {
+      LOGGER.log(Level.FINEST, "onShutdown()");
       final CompletableFuture<Void> onShutdown = new CompletableFuture<>();
       onShutdown.orTimeout(gracePeriod(), TimeUnit.MILLISECONDS);
 
@@ -64,8 +69,12 @@ public interface ShutdownManager {
           scheduledExecutorService()
               .scheduleAtFixedRate(
                   () -> {
+                    LOGGER.log(Level.FINEST, "polling NGServer");
                     if (!server().isRunning()) {
+                      LOGGER.log(Level.FINEST, "NGServer has stopped running");
                       onShutdown.complete(null);
+                    } else {
+                      LOGGER.log(Level.FINEST, "NGServer is still running");
                     }
                   },
                   0,
@@ -73,6 +82,7 @@ public interface ShutdownManager {
                   TimeUnit.MILLISECONDS);
       onShutdown.whenComplete((ignored, err) -> serverStatusPoller.cancel(true));
 
+      LOGGER.log(Level.FINEST, "Instructing NGServer to shutdown");
       server().shutdown();
 
       return onShutdown
@@ -89,6 +99,7 @@ public interface ShutdownManager {
 
     @Override
     public CompletableFuture<NGServer> shutdown() {
+      LOGGER.log(Level.FINEST, "shutdown()");
       return onShutdown().thenApply(ignored -> server());
     }
   }

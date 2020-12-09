@@ -25,24 +25,48 @@ class XSLTNailgunServerSpec extends Specification {
         }
     }
 
+  def "getEnvironmentVariables() extracts relevant envars"(
+    java.util.Map<String, String> allEnvars, Map<String, String> expectedEnvars) {
+    expect:
+    XSLTNailgunServer.getEnvironmentVariables(allEnvars) == expectedEnvars
+
+    where:
+    [allEnvars, expectedEnvars] << [
+      [
+        ["OTHER": "abc", (Constants.LOG_DESTINATION_FILE_ENVAR): "foo", (Constants.LOG_LEVEL_ENVAR): "bar"],
+        [(Constants.LOG_DESTINATION_FILE_ENVAR): "foo", (Constants.LOG_LEVEL_ENVAR): "bar"]
+      ],
+      [
+        ["OTHER": "abc", (Constants.LOG_DESTINATION_FILE_ENVAR): "foo"],
+        [(Constants.LOG_DESTINATION_FILE_ENVAR): "foo"]
+      ],
+      [
+        ["OTHER": "abc", (Constants.LOG_LEVEL_ENVAR): "bar"],
+        [(Constants.LOG_LEVEL_ENVAR): "bar"]
+      ],
+      [["OTHER": "abc"], [:]],
+      [[:], [:]],
+    ].collect { [it[0], HashMap.ofAll(it[1])]}
+  }
+
     @Unroll
-    def "server is created with specified address"(Map<String, Object> args, NGListeningAddress address) {
+    def "server is created with specified address"(Map<String, Object> args, Map<String, String> env, NGListeningAddress address) {
         when:
-        XSLTNailgunServer.main(args, serverFactory)
+        XSLTNailgunServer.main(args, env, serverFactory)
 
         then:
         1 * serverFactory.createServer({ isSameAddress(it, address) }) >> server
         1 * server.run()
 
         where:
-        [args, address] << [
+        [args, env, address] << [
             [["<address>": "./foo"], new NGListeningAddress("./foo")],
             [["<address>": "\\\\?\\pipe\\"], new NGListeningAddress("\\\\?\\pipe\\")],
             [["<address>": "foo", "--address-type": "local"], new NGListeningAddress("foo")],
             // Treated as local, not IP
             [["<address>": "127.0.0.1:2048", "--address-type": "local"], new NGListeningAddress("127.0.0.1:2048")],
             [["<address>": "127.0.0.1:2048"], new NGListeningAddress(InetAddress.getByName("127.0.0.1"), 2048)]
-        ].collect { [HashMap.ofAll(it[0]).merge(OPTIONAL_ARGS), it[1]] }
+        ].collect { [HashMap.ofAll(it[0]).merge(OPTIONAL_ARGS), HashMap.empty(), it[1]] }
     }
 
     static def isSameAddress(NGListeningAddress a, NGListeningAddress b) {
