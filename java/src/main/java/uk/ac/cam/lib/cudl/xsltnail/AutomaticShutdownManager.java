@@ -72,16 +72,8 @@ public interface AutomaticShutdownManager {
     @Override
     public CompletionStage<Void> start() {
       return shutdownCondition()
-          .handle(Values::tryFromValueOrError)
-          .exceptionally(
-              err -> {
-                LOGGER.log(
-                    Level.SEVERE,
-                    "Proceeding to shutdown as shutdownCondition() completed with an exception:",
-                    err);
-                return null;
-              })
-          .thenCompose(
+          .handleAsync(Values::tryFromValueOrError)
+          .thenComposeAsync(
               conditionResult -> {
                 conditionResult
                     .onFailure(
@@ -101,14 +93,14 @@ public interface AutomaticShutdownManager {
                     .toCompletableFuture()
                     .orTimeout(gracePeriod(), TimeUnit.MILLISECONDS);
               })
-          .handle(
+          .handleAsync(
               (server, e) -> {
                 if (e != null) {
                   LOGGER.log(Level.WARNING, "NGServer failed to shutdown, exception follows:", e);
                 }
                 LOGGER.log(Level.FINE, "Exiting with status {0}", exitStatus());
                 jvmExitFunction().accept(exitStatus());
-                throw new AssertionError("Execution continued after calling jvmExitFunction()");
+                return null;
               });
     }
   }

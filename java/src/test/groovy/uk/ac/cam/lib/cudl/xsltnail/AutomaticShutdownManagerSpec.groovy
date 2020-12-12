@@ -61,6 +61,7 @@ class AutomaticShutdownManagerSpec extends Specification {
     given:
     def asm = asmBuilder.build()
 
+    // The asm doesn't call shutdown until the shutdown condition is triggered
     when:
     def onShutdown = asm.start().toCompletableFuture()
     onShutdown.get(10, TimeUnit.MILLISECONDS)
@@ -68,13 +69,12 @@ class AutomaticShutdownManagerSpec extends Specification {
     thrown(TimeoutException)
     0 * shutdownManager.shutdown()
     0 * jvmExitFunction.accept(_)
+
+    // The asm proceeds to shutdown after the condition is triggered
     when:
     shutdownCondition.complete(null)
-    onShutdown.get(10, TimeUnit.MILLISECONDS)
+    onShutdown.get(100, TimeUnit.MILLISECONDS)
     then:
-    def exc = thrown(ExecutionException)
-    exc.cause instanceof AssertionError
-    exc.cause.message == "Execution continued after calling jvmExitFunction()"
     1 * shutdownManager.shutdown() >> CompletableFuture.completedFuture(Mock(NGServer))
     1 * jvmExitFunction.accept(exitStatus)
     1 * logHandler.publish({ it.message == "Automatic shutdown started: {0}" })
@@ -83,17 +83,13 @@ class AutomaticShutdownManagerSpec extends Specification {
   def "jvmExitFunction is called if shutdownCondition fails"() {
     given:
     def asm = asmBuilder.build()
-    shutdownCondition.completeExceptionally(new RuntimeException())
     when:
     def onAutomaticShutdown = asm.start().toCompletableFuture()
     shutdownCondition.completeExceptionally(new RuntimeException())
-    onAutomaticShutdown.get(10, TimeUnit.MILLISECONDS)
+    onAutomaticShutdown.get(100, TimeUnit.MILLISECONDS)
     then:
     1 * shutdownManager.shutdown() >> CompletableFuture.completedFuture(null)
     1 * jvmExitFunction.accept(exitStatus)
-    def exc = thrown(ExecutionException)
-    exc.cause instanceof AssertionError
-    exc.cause.message == "Execution continued after calling jvmExitFunction()"
     1 * logHandler.publish({ it.message == "Proceeding to shutdown as shutdownCondition() completed with an exception:" })
   }
 
@@ -107,9 +103,6 @@ class AutomaticShutdownManagerSpec extends Specification {
     then:
     1 * shutdownManager.shutdown() >> CompletableFuture.failedFuture(new RuntimeException())
     1 * jvmExitFunction.accept(exitStatus)
-    def exc = thrown(ExecutionException)
-    exc.cause instanceof AssertionError
-    exc.cause.message == "Execution continued after calling jvmExitFunction()"
     1 * logHandler.publish({ it.message == "Automatic shutdown started: {0}" })
     1 * logHandler.publish({ it.message == "NGServer failed to shutdown, exception follows:" })
   }
@@ -124,9 +117,6 @@ class AutomaticShutdownManagerSpec extends Specification {
     then:
     1 * shutdownManager.shutdown() >> new CompletableFuture() // does not get resolved
     1 * jvmExitFunction.accept(exitStatus)
-    def exc = thrown(ExecutionException)
-    exc.cause instanceof AssertionError
-    exc.cause.message == "Execution continued after calling jvmExitFunction()"
     1 * logHandler.publish({ it.message == "Automatic shutdown started: {0}" })
     1 * logHandler.publish({ it.message == "NGServer failed to shutdown, exception follows:" })
   }

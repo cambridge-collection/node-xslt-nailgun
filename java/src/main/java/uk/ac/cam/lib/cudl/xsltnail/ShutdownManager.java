@@ -1,6 +1,7 @@
 package uk.ac.cam.lib.cudl.xsltnail;
 
 import com.facebook.nailgun.NGServer;
+import io.vavr.control.Try;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
@@ -8,7 +9,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.immutables.value.Value;
@@ -80,21 +80,25 @@ public interface ShutdownManager {
                   0,
                   pollInterval(),
                   TimeUnit.MILLISECONDS);
-      onShutdown.whenComplete((ignored, err) -> serverStatusPoller.cancel(true));
+      onShutdown.whenCompleteAsync((ignored, err) -> serverStatusPoller.cancel(true));
 
       LOGGER.log(Level.FINEST, "Instructing NGServer to shutdown");
       server().shutdown();
 
       return onShutdown
-          .thenApply(ignored -> CompletableFuture.completedFuture((Void) null))
-          .exceptionally(
-              timeout ->
-                  CompletableFuture.failedFuture(
-                      new TimeoutException(
-                          String.format(
-                              "NGServer failed to shutdown cleanly within %dms grace period",
-                              gracePeriod()))))
-          .thenCompose(Function.identity());
+          .handleAsync(Values::tryFromValueOrError)
+          .thenComposeAsync(
+              result ->
+                  result
+                      .recoverWith(
+                          TimeoutException.class,
+                          timeout ->
+                              Try.failure(
+                                  new TimeoutException(
+                                      String.format(
+                                          "NGServer failed to shutdown cleanly within %dms grace period",
+                                          gracePeriod()))))
+                      .toCompletableFuture());
     }
 
     @Override
