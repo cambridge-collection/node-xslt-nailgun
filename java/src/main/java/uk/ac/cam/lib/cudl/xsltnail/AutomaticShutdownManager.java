@@ -98,7 +98,7 @@ public interface AutomaticShutdownManager {
                 if (e != null) {
                   LOGGER.log(Level.WARNING, "NGServer failed to shutdown, exception follows:", e);
                 }
-                LOGGER.log(Level.FINE, "Exiting with status {0}", exitStatus());
+                LOGGER.log(Level.WARNING, "Exiting with status {0}", exitStatus());
                 jvmExitFunction().accept(exitStatus());
                 return null;
               });

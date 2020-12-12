@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.function.Consumer
 import java.util.logging.Handler
+import java.util.logging.Level
 import java.util.logging.Logger
 
 class AutomaticShutdownManagerSpec extends Specification {
@@ -29,6 +30,7 @@ class AutomaticShutdownManagerSpec extends Specification {
 
   def setup() {
     def logger = Logger.getLogger(DefaultAutomaticShutdownManager.class.getName());
+    logger.setLevel(Level.ALL)
     logger.addHandler(logHandler)
     logger.setUseParentHandlers(false) // suppress log output from tests
 
@@ -36,6 +38,7 @@ class AutomaticShutdownManagerSpec extends Specification {
 
   def cleanup() {
     def logger = Logger.getLogger(DefaultAutomaticShutdownManager.class.getName())
+    logger.setLevel(null)
     logger.removeHandler(logHandler)
     logger.setUseParentHandlers(true)
   }
@@ -78,6 +81,7 @@ class AutomaticShutdownManagerSpec extends Specification {
     1 * shutdownManager.shutdown() >> CompletableFuture.completedFuture(Mock(NGServer))
     1 * jvmExitFunction.accept(exitStatus)
     1 * logHandler.publish({ it.message == "Automatic shutdown started: {0}" })
+    1 * logHandler.publish({ it.message == "Exiting with status {0}" })
   }
 
   def "jvmExitFunction is called if shutdownCondition fails"() {
@@ -91,6 +95,7 @@ class AutomaticShutdownManagerSpec extends Specification {
     1 * shutdownManager.shutdown() >> CompletableFuture.completedFuture(null)
     1 * jvmExitFunction.accept(exitStatus)
     1 * logHandler.publish({ it.message == "Proceeding to shutdown as shutdownCondition() completed with an exception:" })
+    1 * logHandler.publish({ it.message == "Exiting with status {0}" })
   }
 
   def "jvmExitFunction is called if shutdownManager.shutdown() fails"() {
@@ -105,6 +110,7 @@ class AutomaticShutdownManagerSpec extends Specification {
     1 * jvmExitFunction.accept(exitStatus)
     1 * logHandler.publish({ it.message == "Automatic shutdown started: {0}" })
     1 * logHandler.publish({ it.message == "NGServer failed to shutdown, exception follows:" })
+    1 * logHandler.publish({ it.message == "Exiting with status {0}" })
   }
 
   def "jvmExitFunction is called if shutdownManager.shutdown() does not complete in grace period"() {
@@ -119,5 +125,6 @@ class AutomaticShutdownManagerSpec extends Specification {
     1 * jvmExitFunction.accept(exitStatus)
     1 * logHandler.publish({ it.message == "Automatic shutdown started: {0}" })
     1 * logHandler.publish({ it.message == "NGServer failed to shutdown, exception follows:" })
+    1 * logHandler.publish({ it.message == "Exiting with status {0}" })
   }
 }

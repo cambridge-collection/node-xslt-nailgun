@@ -134,7 +134,7 @@ public final class XSLTNailgunServer {
         .addShutdownHook(
             new Thread(
                 () -> {
-                  shutdownLogger.log(Level.FINE, "Shutdown hook starting");
+                  shutdownLogger.log(Level.FINEST, "Shutdown hook starting");
                   try {
                     shutdownManager.shutdown().toCompletableFuture().get();
                   } catch (InterruptedException | ExecutionException e) {
@@ -143,6 +143,7 @@ public final class XSLTNailgunServer {
                   } finally {
                     Logging.DisabledResetLogManager.getIfInUse().peek(m -> m.reset(true));
                   }
+                  shutdownLogger.log(Level.FINEST, "Shutdown hook finished");
                 }));
 
     try {
