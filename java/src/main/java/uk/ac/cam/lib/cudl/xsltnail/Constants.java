@@ -27,8 +27,8 @@ public final class Constants {
   // extract it ourselves...
   public static final String USAGE_TRANSFORM =
       ("Usage:\n"
-          + "    xslt transform [options] [--] <xslt-file> <xml-base-uri>"
-          + "    xslt transform (--help|-h)"
+          + "    xslt transform [options] [--] <xslt-file> <xml-base-uri>\n"
+          + "    xslt transform (--help|-h)\n"
           + "    xslt transform --version");
 
   private static String getResourceAsString(Class<?> clazz, String path, Charset charset)
