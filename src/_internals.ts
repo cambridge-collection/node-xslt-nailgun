@@ -775,11 +775,15 @@ nailgun server's stderr will no longer be monitored as the server has started an
     this.closeCalled = true;
     DEBUG.jvmProcess('stopping JVM; pid=%d', this.process.pid);
     this.process.kill();
-    const timer = _timeout(6000, 'timeout');
-    const result = await Promise.race([
-      this.processExit.catch(() => undefined),
-      timer,
-    ]);
+
+    const result = await using(
+      _timeout(6000, 'timeout'),
+      async timer =>
+        await Promise.race([
+          this.processExit.catch(() => undefined),
+          timer.finished,
+        ])
+    );
     if (result === 'timeout') {
       DEBUG.jvmProcess(
         'JVM failed to shutdown, sending SIGKILL; pid=%d',
@@ -789,7 +793,6 @@ nailgun server's stderr will no longer be monitored as the server has started an
       await this.processExit.catch(() => undefined);
     } else {
       DEBUG.jvmProcess('stopped JVM; pid=%d', this.process.pid);
-      timer.close();
     }
     process.removeListener('exit', this.boundOnProcessExit);
   }
@@ -825,12 +828,11 @@ received our node process's 'exit' event, but our nailgun server hasn't been kil
   }
 }
 
-function _timeout<T extends undefined>(
-  ms: number,
-  value?: T
-): PromiseLike<T> & Closable;
-function _timeout<T>(ms: number, value: T): PromiseLike<T> & Closable;
-function _timeout<T>(ms: number, value: T): PromiseLike<T> & Closable {
+type PromiseTimer<T> = {finished: Promise<T>} & Closable;
+
+function _timeout<T extends undefined>(ms: number, value?: T): PromiseTimer<T>;
+function _timeout<T>(ms: number, value: T): PromiseTimer<T>;
+function _timeout<T>(ms: number, value: T): PromiseTimer<T> {
   let id: Timeout;
   let close: undefined | (() => Promise<void> | void) = undefined;
   const finished = new Promise<T>(resolve => {
@@ -841,7 +843,7 @@ function _timeout<T>(ms: number, value: T): PromiseLike<T> & Closable {
     };
   });
   assert(close !== undefined);
-  return {close, then: finished.then.bind(finished)};
+  return {close, finished};
 }
 export {_timeout as timeout};
 

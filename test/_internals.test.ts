@@ -1,4 +1,5 @@
 import path from 'path';
+import {using} from '../src';
 import {
   AddressType,
   getClasspath,
@@ -56,17 +57,39 @@ test.each([
 describe('timeout()', () => {
   test('value is optional', async () => {
     let value: string | undefined = undefined;
-    await expect(timeout(10)).resolves.toBeUndefined();
-    await expect(timeout(10, value)).resolves.toBeUndefined();
+    await expect(timeout(10).finished).resolves.toBeUndefined();
+    await expect(timeout(10, value).finished).resolves.toBeUndefined();
     value = 'abc';
-    await expect(timeout(10, value)).resolves.toBe('abc');
+    await expect(timeout(10, value).finished).resolves.toBe('abc');
   });
 
   test('close() stops the timeout immediately', async () => {
-    jest.useFakeTimers();
-    const t = timeout(1000 * 60, 42);
-    setTimeout(t.close, 1000);
-    jest.advanceTimersByTime(2000);
-    await expect(t).resolves.toBe(42);
+    jest.useFakeTimers('modern');
+    const onResolved = jest.fn();
+    const onRejected = jest.fn();
+    const t = timeout(1000 * 60, 'foo');
+
+    t.finished.then(onResolved, onRejected);
+    setTimeout(t.close, 500);
+    jest.advanceTimersByTime(500);
+    await t.finished;
+
+    expect(onResolved.mock.calls.length).toBe(1);
+    expect(onResolved.mock.calls[0][0]).toBe('foo');
+    expect(onRejected.mock.calls.length).toBe(0);
   }, 2000);
+
+  test('timeout() returns a resource manageable with using()', async () => {
+    jest.useFakeTimers();
+    const onResolved = jest.fn();
+    const onRejected = jest.fn();
+
+    await using(timeout(1000 * 60, 'foo'), t => {
+      t.finished.then(onResolved, onRejected);
+    });
+
+    await expect(onResolved.mock.calls.length).toBe(1);
+    await expect(onResolved.mock.calls[0][0]).toBe('foo');
+    await expect(onRejected.mock.calls.length).toBe(0);
+  });
 });
