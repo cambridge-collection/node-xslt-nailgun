@@ -67,7 +67,7 @@ class AutomaticShutdownManagerSpec extends Specification {
     // The asm doesn't call shutdown until the shutdown condition is triggered
     when:
     def onShutdown = asm.start().toCompletableFuture()
-    onShutdown.get(10, TimeUnit.MILLISECONDS)
+    onShutdown.get(1, TimeUnit.SECONDS)
     then:
     thrown(TimeoutException)
     0 * shutdownManager.shutdown()
@@ -76,7 +76,7 @@ class AutomaticShutdownManagerSpec extends Specification {
     // The asm proceeds to shutdown after the condition is triggered
     when:
     shutdownCondition.complete(null)
-    onShutdown.get(100, TimeUnit.MILLISECONDS)
+    onShutdown.get(1, TimeUnit.SECONDS)
     then:
     1 * shutdownManager.shutdown() >> CompletableFuture.completedFuture(Mock(NGServer))
     1 * jvmExitFunction.accept(exitStatus)
@@ -90,7 +90,7 @@ class AutomaticShutdownManagerSpec extends Specification {
     when:
     def onAutomaticShutdown = asm.start().toCompletableFuture()
     shutdownCondition.completeExceptionally(new RuntimeException())
-    onAutomaticShutdown.get(100, TimeUnit.MILLISECONDS)
+    onAutomaticShutdown.get(1, TimeUnit.SECONDS)
     then:
     1 * shutdownManager.shutdown() >> CompletableFuture.completedFuture(null)
     1 * jvmExitFunction.accept(exitStatus)
@@ -104,7 +104,7 @@ class AutomaticShutdownManagerSpec extends Specification {
     when:
     def onAutomaticShutdown = asm.start().toCompletableFuture()
     shutdownCondition.complete(null)
-    onAutomaticShutdown.get(10, TimeUnit.MILLISECONDS)
+    onAutomaticShutdown.get(1, TimeUnit.SECONDS)
     then:
     1 * shutdownManager.shutdown() >> CompletableFuture.failedFuture(new RuntimeException())
     1 * jvmExitFunction.accept(exitStatus)
