@@ -64,6 +64,17 @@ $ npm install
 $ npm run test
 ```
 
+## Releases
+
+[standard-version] is used to create release tags. Run `$ npm run release` to create a new version.
+
+This relies on commits following the [conventional-commits] conventions.
+
+[standard-version]: https://www.npmjs.com/package/standard-version
+[conventional-commits]: https://www.conventionalcommits.org/en/v1.0.0/
+
+Currently, this fork of https://bitbucket.org/bjconlan/jvmpin is not published on https://www.npmjs.com/.
+
 ## Contributors
 
 [Eric McCarthy](http://limulus.net/)

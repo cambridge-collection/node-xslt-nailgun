@@ -1,0 +1,12 @@
+Verify that jvmpin does not hold the node process open
+
+A command is executed and either allowed to complete normally, or killed
+prematurely. In either case node should be able to shutdown at the end of the
+event loop's iteration.
+
+Usage:
+    jvmpin-clean-shutdown-test.js [options]
+
+Options:
+    --kill           Kill the jvmpin process before it's completed.
+    
