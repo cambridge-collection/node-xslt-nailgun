@@ -17,11 +17,11 @@
 }
 
 @test "roundtrip 1" {
-  echo hi | node jvmpin-multiple-spawn-test.js
+  echo hi | node jvmpin-roundtrip-test.js
 }
 
 @test "roundtrip 2" {
-  head -c 10M /dev/urandom | node jvmpin-multiple-spawn-test.js
+  head -c 10M /dev/urandom | node jvmpin-roundtrip-test.js
 }
 
 @test "interactive prompt" {
@@ -59,6 +59,14 @@ backpressureTest() {
   ulimit -v "$mem_limit"
 
   node --expose-gc jvmpin-backpressure-test.js $@
+}
+
+@test "clean shutdown - normal exit" {
+  node jvmpin-clean-shutdown-test.js
+}
+
+@test "clean shutdown - after kill()" {
+  node jvmpin-clean-shutdown-test.js --kill
 }
 
 PID_FILE="$BATS_TMPDIR/test.bats.pid"

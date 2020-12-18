@@ -49,7 +49,7 @@ function validateHashes() {
     console.error(util.format('%s:\n  sha256(sent)     = %s\n  sha256(received) = %s',
         match ? 'OK' : 'FAIL', expectedDigest, actualDigest));
     validated = true;
-    process.exit(match ? 0 : 1);
+    process.exitCode = match ? 0 : 1;
 }
 
 function writeStdin(dest, cb) {
