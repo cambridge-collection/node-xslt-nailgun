@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.3.1](https://github.com/cambridge-collection/node-xslt-nailgun/compare/v0.3.0...v0.3.1) (2020-12-18)
+
+
+### Bug Fixes
+
+* Timer was leaked for ~1000ms after XSLT execution ([3d79566](https://github.com/cambridge-collection/node-xslt-nailgun/commit/3d79566a44824c3bcc21da9f030d11876475ef42))
+
 ## [0.3.0](https://github.com/cambridge-collection/node-xslt-nailgun/compare/v0.2.1...v0.3.0) (2020-12-14)
 
 
