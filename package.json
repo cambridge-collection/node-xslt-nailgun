@@ -62,7 +62,6 @@
     "bl": "^4.0.3",
     "debug": "^4.3.1",
     "json-stable-stringify": "^1.0.1",
-    "p-finally": "^2.0.1",
     "promise.allsettled": "^1.0.2",
     "readable-stream": "^3.6.0",
     "ringbufferjs": "^2.0.0",

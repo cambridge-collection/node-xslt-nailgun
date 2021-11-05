@@ -5,7 +5,6 @@ import BufferList from 'bl';
 import {ChildProcess, spawn} from 'child_process';
 import createDebug from 'debug';
 import jsonStableStringify from 'json-stable-stringify';
-import promiseFinally from 'p-finally';
 import path from 'path';
 import readline from 'readline';
 import RingBuffer from 'ringbufferjs';
@@ -248,7 +247,8 @@ interface KeepAliveStrategy<T extends Closable> {
 }
 
 abstract class BaseKeepAliveStrategy<T extends Closable = Closable>
-  implements KeepAliveStrategy<T> {
+  implements KeepAliveStrategy<T>
+{
   readonly hooks = new KeepAliveStrategyHooks();
   protected _isAlive: boolean;
   private autoCloserHooks: DefaultAutoCloserKeepAliveHooks<T> | undefined;
@@ -1151,7 +1151,7 @@ No input specified in options - at least one of xml, xmlPath, systemIdentifier m
   execute(options: ExecuteOptions): Promise<Buffer> {
     const pendingResult = this.doExecute(options);
     this.activeExecutions.add(pendingResult);
-    return promiseFinally(pendingResult, () => {
+    return pendingResult.finally(() => {
       this.activeExecutions.delete(pendingResult);
     });
   }
