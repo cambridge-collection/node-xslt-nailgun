@@ -1,6 +1,7 @@
 .idea
 *.iml
 /java/target
+/java/.*
 node_modules
 /build
 test-reports
