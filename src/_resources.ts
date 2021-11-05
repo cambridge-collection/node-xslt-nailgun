@@ -36,7 +36,10 @@ export async function usingPromise<A extends Closable, B>(
       // Prefer to fail with an error from the user function
       if (!userFailed) {
         result = Promise.reject(
-          new TraceError('The resource promise was rejected', e)
+          new TraceError(
+            'The resource promise was rejected',
+            e instanceof Error ? e : new Error(`${e}`)
+          )
         );
       }
     }
@@ -46,7 +49,10 @@ export async function usingPromise<A extends Closable, B>(
       } catch (e) {
         if (!userFailed) {
           result = Promise.reject(
-            new TraceError('close() failed on resource', e)
+            new TraceError(
+              'close() failed on resource',
+              e instanceof Error ? e : new Error(`${e}`)
+            )
           );
         }
         // Note that we ignore a failure in close() if the user also failed

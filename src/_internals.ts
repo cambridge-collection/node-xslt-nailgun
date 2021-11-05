@@ -1,9 +1,10 @@
 import {name} from 'xml-name-validator';
 
 import assert from 'assert';
-import BufferList from 'bl';
+import BufferListStream from 'bl';
 import {ChildProcess, spawn} from 'child_process';
 import createDebug from 'debug';
+import {EventEmitter} from 'events';
 import jsonStableStringify from 'json-stable-stringify';
 import path from 'path';
 import readline from 'readline';
@@ -72,7 +73,7 @@ export function parseClarkName(value: string): {ns: string; id: string} {
     id = value;
   }
 
-  if (!name(id).success) {
+  if (!name(id)) {
     throw new Error(
       parseClarkNameError(
         value,
@@ -1074,6 +1075,7 @@ export class XSLTExecutor implements Closable {
         options.parameters || {}
       );
     } catch (e) {
+      assert(e instanceof Error);
       throw new TraceError(`Failed to encode parameters: ${e.message}`, e);
     }
     if (
@@ -1210,8 +1212,13 @@ Error communicating with xslt-nailgun server. Nailgun server stderr${serverError
       });
     });
 
-    const stdoutData = new BufferList();
-    const stderrData = new BufferList();
+    // FIXME: cast to include EventEmitter is required currently, as the bl mod
+    // uses readable-stream, and it (incorrectly) doesn't include all the
+    // EventEmitter methods. .pipe() requires an EventEmitter.
+    const stdoutData = new BufferListStream() as BufferListStream &
+      EventEmitter;
+    const stderrData = new BufferListStream() as BufferListStream &
+      EventEmitter;
     proc.stdout.pipe(stdoutData);
     proc.stderr.pipe(stderrData);
     proc.stdin.end(stdin);

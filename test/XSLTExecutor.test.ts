@@ -316,7 +316,13 @@ async function runTransform(keepAliveTimeout: number): Promise<number> {
 }
 
 async function getNailgunServerPID(executor: XSLTExecutor): Promise<number> {
-  return (await executor['serverProcessRef'].resource)['process'].pid;
+  const pid = (await executor['serverProcessRef'].resource)['process'].pid;
+  if (pid === undefined) {
+    throw new Error(
+      'Failed to get PID associated with XSLTExecutor: ChildProcess has no pid'
+    );
+  }
+  return pid;
 }
 
 test('executor reuses nailgun server when within an un-elapsed jvmKeepAliveTimeout', async () => {
