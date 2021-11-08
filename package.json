@@ -69,11 +69,6 @@
     "trace-error": "^1.0.3",
     "xml-name-validator": "^4.0.0"
   },
-  "jest": {
-    "modulePathIgnorePatterns": [
-      "<rootDir>/build/"
-    ]
-  },
   "uk.ac.cam.lib.cudl.xslt-nailgun": {
     "serverJarsPath": "java/target/jars"
   },
