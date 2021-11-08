@@ -30,7 +30,7 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
-      - name: Compile java and typescrit, and assemble NPM package
+      - name: Compile java and typescript, and assemble NPM package
         run: make
         env:
           # Don't require toolchains.xml as we know the exact Java version
