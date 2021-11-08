@@ -15,7 +15,7 @@
   "license": "MIT",
   "repository": "github:cambridge-collection/node-xslt-nailgun",
   "engines": {
-    "node": ">=v10"
+    "node": ">=v12"
   },
   "scripts": {
     "build": "tsc --build tsconfig.build.json",
@@ -36,7 +36,7 @@
     "email": "hwtb2@cam.ac.uk"
   },
   "devDependencies": {
-    "@tsconfig/node10": "^1.0.8",
+    "@tsconfig/node12": "^1.0.9",
     "@types/bl": "^5.0.2",
     "@types/debug": "^4.1.7",
     "@types/glob": "^7.2.0",
