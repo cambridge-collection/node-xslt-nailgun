@@ -52,7 +52,7 @@ jobs:
     strategy:
       matrix:
         node-version: [12.x, 14.x, 16.x, 17.x]
-        java-version: [11, 15]
+        java-version: [11, 17]
 
     steps:
       - uses: actions/checkout@v2
@@ -87,7 +87,7 @@ jobs:
     strategy:
       matrix:
         node-version: [12.x, 14.x, 16.x, 17.x]
-        java-version: [ 11, 15 ]
+        java-version: [11, 17]
 
     steps:
       - uses: actions/checkout@v2
