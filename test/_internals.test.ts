@@ -64,7 +64,7 @@ describe('timeout()', () => {
   });
 
   test('close() stops the timeout immediately', async () => {
-    jest.useFakeTimers('modern');
+    jest.useFakeTimers();
     const onResolved = jest.fn();
     const onRejected = jest.fn();
     const t = timeout(1000 * 60, 'foo');
