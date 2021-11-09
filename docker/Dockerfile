@@ -7,14 +7,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-cer
 RUN curl -o /tmp/install.sh https://raw.githubusercontent.com/nvm-sh/nvm/v0.37.0/install.sh
 RUN bash /tmp/install.sh
 ENV NVM_DIR="/root/.nvm"
-RUN . $NVM_DIR/nvm.sh && nvm install $NODE_VERSION
+RUN . $NVM_DIR/nvm.sh \
+  && nvm install $NODE_VERSION \
+  # link the (dynamically-named) version dir to a fixed location
+  && ln -s "$(dirname "$(dirname "$(nvm which $NODE_VERSION)")")" /opt/node
 
 
 FROM maven:3-adoptopenjdk-${JAVA_VERSION_SHORT} AS packager
 ARG NODE_VERSION
 ARG JAVA_VERSION_SHORT
 ENV CI=true
-COPY --from=node /root/.nvm/versions/node/$NODE_VERSION/ /opt/node/
+COPY --from=node /opt/node/ /opt/node/
 ENV PATH=/opt/node/bin:$PATH
 RUN apt-get update && \
   apt-get install -y --no-install-recommends build-essential python3 jq && \
@@ -29,7 +32,7 @@ RUN mkdir -p /root/.m2 \
 
 FROM adoptopenjdk:${JAVA_VERSION_SHORT}-jre-hotspot-focal AS test-runner-base
 ARG NODE_VERSION
-COPY --from=node /root/.nvm/versions/node/$NODE_VERSION/ /opt/node/
+COPY --from=node /opt/node/ /opt/node/
 ENV PATH=/opt/node/bin:$PATH
 RUN adduser --disabled-password --gecos '' ci
 
