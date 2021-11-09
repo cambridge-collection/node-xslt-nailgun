@@ -13,7 +13,7 @@ RUN . $NVM_DIR/nvm.sh \
   && ln -s "$(dirname "$(dirname "$(nvm which $NODE_VERSION)")")" /opt/node
 
 
-FROM maven:3-adoptopenjdk-${JAVA_VERSION_SHORT} AS packager
+FROM maven:3-eclipse-temurin-${JAVA_VERSION_SHORT} AS packager
 ARG NODE_VERSION
 ARG JAVA_VERSION_SHORT
 ENV CI=true
@@ -30,7 +30,7 @@ RUN mkdir -p /root/.m2 \
   | xargs -0 -I "{}" printf "{}" "$JAVA_VERSION_SHORT" "$JAVA_HOME" > /root/.m2/toolchains.xml
 
 
-FROM adoptopenjdk:${JAVA_VERSION_SHORT}-jre-hotspot-focal AS test-runner-base
+FROM eclipse-temurin:${JAVA_VERSION_SHORT}-jdk-focal AS test-runner-base
 ARG NODE_VERSION
 COPY --from=node /opt/node/ /opt/node/
 ENV PATH=/opt/node/bin:$PATH
