@@ -31,7 +31,9 @@ beforeAll(() => {
 
 test('executor reuses nailgun server when within an un-elapsed jvmKeepAliveTimeout', async () => {
   jest.useFakeTimers();
-  const keepAlive = 2000;
+  // the time doesn't really matter, but needs to be high enough that one
+  // startup + tx run doesn't take longer than this under a slow CI build.
+  const keepAlive = 1000 * 20;
   const jvmProcessID = expect.getState().currentTestName;
 
   const start = Date.now();
