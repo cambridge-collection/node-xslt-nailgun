@@ -10,21 +10,21 @@ docker-build-package:
 docker-unit-tests:
 	parallel --tag --jobs "$(DOCKER_RUN_PARALLEL_JOBS)" \
 		docker-compose run --rm "{}" ::: \
-		test_node-oldest_java-11
-		test_node-latest_java-15
+		test_node-oldest_java-oldest
+		test_node-latest_java-latest
 
 docker-integration-tests:
 	parallel --tag --jobs "$(DOCKER_RUN_PARALLEL_JOBS)" \
 		docker-compose run --rm "{}" ::: \
-		integration-test_node-oldest_java-11 \
-		integration-test_node-latest_java-15
+		integration-test_node-oldest_java-oldest \
+		integration-test_node-latest_java-latest
 
 docker-all-tests:
 	parallel --tag --jobs "$(DOCKER_RUN_PARALLEL_JOBS)" \
 		docker-compose run --rm "{}" ::: \
-		test_node-oldest_java-11 \
-		integration-test_node-oldest_java-11 \
-		test_node-latest_java-15 \
-		integration-test_node-latest_java-15
+		test_node-oldest_java-oldest \
+		integration-test_node-oldest_java-oldest \
+		test_node-latest_java-latest \
+		integration-test_node-latest_java-latest
 
  .PHONY: docker-all-tests docker-integration-tests docker-unit-tests

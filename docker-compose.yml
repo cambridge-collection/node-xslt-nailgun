@@ -18,7 +18,7 @@ services:
       - maven-repository-cache:/root/.m2/repository
     command: make
 
-  test_node-oldest_java-11:
+  test_node-oldest_java-oldest:
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -30,7 +30,7 @@ services:
       - .:/project-files:ro
       - java-build:/code/java/target:ro
       - node-build:/code/build:ro
-  integration-test_node-oldest_java-11:
+  integration-test_node-oldest_java-oldest:
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -43,26 +43,26 @@ services:
       - java-build:/code/java/target:ro
       - node-build:/code/build:ro
 
-  test_node-latest_java-15:
+  test_node-latest_java-latest:
     build:
       context: .
       dockerfile: docker/Dockerfile
       target: test-runner
       args:
         NODE_VERSION: v17
-        JAVA_VERSION_SHORT: 15
+        JAVA_VERSION_SHORT: 17
     volumes:
       - .:/project-files:ro
       - java-build:/code/java/target:ro
       - node-build:/code/build:ro
-  integration-test_node-latest_java-15:
+  integration-test_node-latest_java-latest:
     build:
       context: .
       dockerfile: docker/Dockerfile
       target: integration-test-runner
       args:
         NODE_VERSION: v17
-        JAVA_VERSION_SHORT: 15
+        JAVA_VERSION_SHORT: 17
     volumes:
       - .:/project-files:ro
       - java-build:/code/java/target:ro
