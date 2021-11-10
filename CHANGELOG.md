@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.4.0](https://github.com/cambridge-collection/node-xslt-nailgun/compare/v0.3.1...v0.4.0) (2021-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **java:** update Saxon to 10.6 (from 9.9)
+* min node version is 12
+
+### Features
+
+* **java:** update Saxon to 10.6 (from 9.9) ([33b3f05](https://github.com/cambridge-collection/node-xslt-nailgun/commit/33b3f05f63fbd6b1dcc29c159243bc8aacbbb099))
+
+
+* min node version is 12 ([c6f1437](https://github.com/cambridge-collection/node-xslt-nailgun/commit/c6f1437bba913df3f1366b0de810cfec9ad7971c))
+
 ### [0.3.1](https://github.com/cambridge-collection/node-xslt-nailgun/compare/v0.3.0...v0.3.1) (2020-12-18)
 
 
