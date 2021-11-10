@@ -191,9 +191,10 @@ test('execute() rejects with UserError when execution of XSLT raises an error', 
 
   await expect(result).rejects.toThrow(UserError);
   await expect(result).rejects.toThrow(
-    /^XSLT evaluation produced an error: Failed to execute transform: Error evaluating \(1 div 0\)/
+    'XSLT evaluation produced an error: Failed to execute transform: Error at char 0 in expression in ' +
+      'xsl:value-of/@select on line 5 column 49 of invalid-logic.xsl:'
   );
-  await expect(result).rejects.toThrow(/FOAR0001: Integer division by zero/);
+  await expect(result).rejects.toThrow(/FOAR0001 +Integer division by zero/);
 });
 
 test('execute() cannot be invoked after executor is closed', async () => {

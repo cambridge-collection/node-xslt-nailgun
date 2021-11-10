@@ -5,8 +5,10 @@ import com.facebook.nailgun.NGServer
 import io.vavr.collection.HashMultimap
 import io.vavr.collection.Multimap
 import io.vavr.control.Option
+import net.sf.saxon.lib.Feature
 import net.sf.saxon.s9api.Processor
 import net.sf.saxon.s9api.QName
+import net.sf.saxon.trans.RecoveryPolicy
 import org.xmlunit.builder.Input
 import spock.lang.Specification
 import spock.lang.Unroll
@@ -46,7 +48,7 @@ class XSLTNailSpec extends Specification {
     }
 
     static def normaliseWhitespace(String s) {
-        s.replaceAll("\\s+", " ")
+        s.replaceAll("\\s+", " ").trim()
     }
 
     static def runParamTransform(Multimap<QName, String> params) {
@@ -193,8 +195,9 @@ class XSLTNailSpec extends Specification {
         result.isLeft()
         result.getLeft()._2 == EXIT_STATUS_USER_ERROR
         def err = normaliseWhitespace(result.getLeft()._1)
-        err.startsWith("Failed to execute transform: Error evaluating")
-        err.contains("XTDE0700: A value must be supplied for parameter \$date-param because there is no default value for the required type")
+        err == "Failed to execute transform: Error at parameter date-param on line 13 column 0 of params.xsl: " +
+          "XTDE0700 A value must be supplied for parameter \$date-param because there is no default value for the " +
+          "required type In template rule with match=\"/\" on line 17 of params.xsl"
     }
 
     def "transform() fails if a parameter value cannot be cast to the parameter type"() {
@@ -208,8 +211,9 @@ class XSLTNailSpec extends Specification {
         result.isLeft()
         result.getLeft()._2 == EXIT_STATUS_USER_ERROR
         def err = normaliseWhitespace(result.getLeft()._1)
-        err.startsWith("Failed to execute transform: Error evaluating")
-        err.contains("FORG0001: Invalid date \"foobar\" (Non-numeric year component)")
+        err == "Failed to execute transform: Error at char 19 in expression in param/@year on line 23 column 101 of " +
+          "params.xsl: FORG0001 Invalid date \"foobar\" (Non-numeric year component) In template rule with " +
+          "match=\"/\" on line 17 of params.xsl"
     }
 
     def "transform() returns error message on invalid input data"() {
@@ -224,7 +228,10 @@ class XSLTNailSpec extends Specification {
         def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
 
         then:
-        result.left._1 =~ /Error reported by XML parser:/
+        normaliseWhitespace(result.left._1) ==
+          "Failed to execute transform: Error on line 1 column 7 SXXP0003 Error reported by XML parser: XML document " +
+          "structures must start and end within the same entity.: XML document structures must start and end within " +
+          "the same entity."
         result.left._2 == Constants.EXIT_STATUS_USER_ERROR
     }
 
@@ -238,7 +245,10 @@ class XSLTNailSpec extends Specification {
         def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
 
         then:
-        result.left._1 =~ /^Failed to compile XSLT: Error on line \d+ column \d+ of invalid-syntax.xsl:/
+        normaliseWhitespace(result.left._1) ==
+          "Failed to compile XSLT: Error on line 5 column 1 of invalid-syntax.xsl: SXXP0003 Error reported by XML " +
+          "parser: XML document structures must start and end within the same entity.: XML document structures " +
+          "must start and end within the same entity."
         result.left._2 == Constants.EXIT_STATUS_USER_ERROR
     }
 
@@ -252,8 +262,10 @@ class XSLTNailSpec extends Specification {
         def result = XSLTNail.newInstance().withCloseable { xn -> xn.transform(op, stream(input), out) }
 
         then:
-        result.left._1 =~ /^Failed to execute transform: Error evaluating \(1 div 0\)/
-        result.left._1 =~ /FOAR0001: Integer division by zero/
+        normaliseWhitespace(result.left._1) ==
+          "Failed to execute transform: Error at char 0 in expression in xsl:value-of/@select on line 5 column 49 of " +
+          "invalid-logic.xsl: FOAR0001 Integer division by zero In template rule with match=\"/\" on line 4 of " +
+          "invalid-logic.xsl"
         result.left._2 == Constants.EXIT_STATUS_USER_ERROR
     }
 
@@ -354,7 +366,7 @@ class XSLTNailSpec extends Specification {
 
         then:
         errPatterns.each {
-            assert result.left._1.find(it)
+            assert normaliseWhitespace(result.left._1).find(it)
         }
         result.left._2 == Constants.EXIT_STATUS_USER_ERROR
 
@@ -366,7 +378,7 @@ class XSLTNailSpec extends Specification {
             [{File file -> file.delete()},
              [/^Failed to compile XSLT: .*xslt-nail-test_.* \(No such file or directory\)$/]],
             [{File file -> file.write(String.format(XSLT_TEMPLATE, "< broken xml"))},
-             [/^Failed to compile XSLT: /, /SXXP0003: Error reported by XML parser: /]]
+             [/^Failed to compile XSLT: /, /SXXP0003 Error reported by XML parser: The content of elements must consist of well-formed character data or markup/]]
         ]
     }
 
@@ -418,22 +430,28 @@ class XSLTNailSpec extends Specification {
             [getResourceAsPath("a.xsl"), "<a", { int exitStatus, ByteArrayOutputStream outStream, ByteArrayOutputStream errStream ->
                 assert exitStatus == 2
                 assert outStream.toString() == ""
-                assert errStream.toString().find(/^Failed to execute transform: Error on line 1 column 3 of foo.xml:/)
-                assert errStream.toString().find(/Error reported by XML parser/)
+                assert normaliseWhitespace(errStream.toString()) ==
+                  "Failed to execute transform: Error on line 1 column 3 of foo.xml: SXXP0003 Error reported by XML " +
+                  "parser: XML document structures must start and end within the same entity.: XML document " +
+                  "structures must start and end within the same entity."
                 true
             }],
             [getResourceAsPath("invalid-syntax.xsl"), "<a/>", { int exitStatus, ByteArrayOutputStream outStream, ByteArrayOutputStream errStream ->
                 assert exitStatus == 2
                 assert outStream.toString() == ""
-                assert errStream.toString().find(/^Failed to compile XSLT: Error on line 5 column 1 of invalid-syntax.xsl:/)
-                assert errStream.toString().find(/Error reported by XML parser/)
+                assert normaliseWhitespace(errStream.toString()) ==
+                  "Failed to compile XSLT: Error on line 5 column 1 of invalid-syntax.xsl: SXXP0003 Error reported " +
+                  "by XML parser: XML document structures must start and end within the same entity.: XML document " +
+                  "structures must start and end within the same entity."
                 true
             }],
             [getResourceAsPath("invalid-logic.xsl"), "<a/>", { int exitStatus, ByteArrayOutputStream outStream, ByteArrayOutputStream errStream ->
                 assert exitStatus == 2
                 assert outStream.toString() == ""
-                assert errStream.toString().find(/^Failed to execute transform: Error evaluating \(1 div 0\)/)
-                assert errStream.toString().find(/FOAR0001: Integer division by zero/)
+                assert normaliseWhitespace(errStream.toString()) ==
+                  "Failed to execute transform: Error at char 0 in expression in xsl:value-of/@select on line 5 " +
+                  "column 49 of invalid-logic.xsl: FOAR0001 Integer division by zero In template rule with " +
+                  "match=\"/\" on line 4 of invalid-logic.xsl"
                 true
             }],
         ]

@@ -32,8 +32,7 @@ class FileTimestampAsyncXSLTLoader
         ThreadLocal.withInitial(
             () -> {
               XsltCompiler c = this.processor.newXsltCompiler();
-              MemoryLogger logger =
-                  ErrorListeners.assignThreadSafeErrorListener(c::setErrorListener);
+              MemoryLogger logger = SaxonErrors.assignThreadSafeErrorReporter(c::setErrorReporter);
               this.logger.set(logger);
               return c;
             });

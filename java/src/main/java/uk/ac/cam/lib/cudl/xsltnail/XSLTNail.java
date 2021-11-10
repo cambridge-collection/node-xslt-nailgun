@@ -29,7 +29,9 @@ import java.util.logging.Logger;
 import javax.annotation.Nonnull;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
+import net.sf.saxon.lib.Feature;
 import net.sf.saxon.s9api.*;
+import net.sf.saxon.trans.RecoveryPolicy;
 import net.sf.saxon.value.UntypedAtomicValue;
 
 public class XSLTNail implements AutoCloseable {
@@ -101,6 +103,8 @@ public class XSLTNail implements AutoCloseable {
 
   public static XSLTNail newInstance() {
     Processor processor = new Processor(false);
+    processor.setConfigurationProperty(
+        Feature.RECOVERY_POLICY, RecoveryPolicy.RECOVER_WITH_WARNINGS.ordinal());
     FileTimestampAsyncXSLTLoader loader = new FileTimestampAsyncXSLTLoader(processor);
 
     return new XSLTNail(loader, Duration.of(60, ChronoUnit.SECONDS));
@@ -155,7 +159,7 @@ public class XSLTNail implements AutoCloseable {
       InputStream in,
       OutputStream out) {
     Xslt30Transformer tx = executable.load30();
-    MemoryLogger logger = ErrorListeners.assignThreadSafeErrorListener(tx::setErrorListener);
+    MemoryLogger logger = SaxonErrors.assignThreadSafeErrorReporter(tx::setErrorReporter);
 
     return getSource(operation, in)
         .flatMap(
