@@ -1,7 +1,10 @@
 # TODO
 
-* Use a conventional, well-supported RPC technology (such as gRPC) instead of Nailgun. The Nailgun 
-  server itself and node packages for it are not actively developed (hence vendoring jvmpin here 
+* Evaluate Saxon's (somewhat) new [saxon-js](https://www.npmjs.com/package/saxon-js) package to see
+  if it can either replace this, or we could use it as an alternate backend to avoid needing a JVM
+  & RPC.
+* Use a conventional, well-supported RPC technology (such as gRPC) instead of Nailgun. The Nailgun
+  server itself and node packages for it are not actively developed (hence vendoring jvmpin here
   currently). The server would be more useful if it used a popular RPC framework as it'd be more
   likely to be reused elsewhere. I went with Nailgun initially in order to avoid native dependencies
   blocking node version upgrades, and because the simplicity and ease of debugging Nailgun seemed
