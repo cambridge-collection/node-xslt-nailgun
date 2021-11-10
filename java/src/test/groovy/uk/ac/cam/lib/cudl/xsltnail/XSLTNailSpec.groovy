@@ -377,9 +377,9 @@ class XSLTNailSpec extends Specification {
         def context = Mock(NGContext)
         def out = new ByteArrayOutputStream()
         def err = new ByteArrayOutputStream()
-        context.out = new PrintStream(out, true, "UTF-8")
-        context.err = new PrintStream(err, true, "UTF-8")
-        context.in = stream(input)
+        context.@out = new PrintStream(out, true, "UTF-8")
+        context.@err = new PrintStream(err, true, "UTF-8")
+        context.@in = stream(input)
         def status = 0
 
         when:
