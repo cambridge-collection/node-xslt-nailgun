@@ -1,6 +1,6 @@
 import 'jest-xml-matcher';
 import path from 'path';
-import {URL} from 'url';
+import * as os from 'os';
 import {InternalError, UserError, using, XSLTExecutor} from '../src';
 import {
   execute,
@@ -10,15 +10,15 @@ import {
   timeout,
 } from '../src/_internals';
 
-const testResourcesDir = path.resolve(
-  __dirname,
-  '../java/src/test/resources/uk/ac/cam/lib/cudl/xsltnail'
-);
-const aXslPath = path.resolve(testResourcesDir, 'a.xsl');
-const paramsXslPath = path.resolve(testResourcesDir, 'params.xsl');
-const baseURIXslPath = path.resolve(testResourcesDir, 'base-uri.xsl');
-const aXmlPath = path.resolve(testResourcesDir, 'a.xml');
-const aXmlURI = new URL(aXmlPath, 'file://').toString();
+import {
+  aXslPath,
+  paramsXslPath,
+  baseURIXslPath,
+  aXmlPath,
+  aXmlURI,
+  testResourcesDir,
+  runTransform,
+} from './XSLTExecutor_common';
 
 function nextProcessID() {
   return `${__filename}-${nextProcessID.seq++}`;
@@ -191,9 +191,10 @@ test('execute() rejects with UserError when execution of XSLT raises an error', 
 
   await expect(result).rejects.toThrow(UserError);
   await expect(result).rejects.toThrow(
-    /^XSLT evaluation produced an error: Failed to execute transform: Error evaluating \(1 div 0\)/
+    'XSLT evaluation produced an error: Failed to execute transform: Error at char 0 in expression in ' +
+      'xsl:value-of/@select on line 5 column 49 of invalid-logic.xsl:'
   );
-  await expect(result).rejects.toThrow(/FOAR0001: Integer division by zero/);
+  await expect(result).rejects.toThrow(/FOAR0001 +Integer division by zero/);
 });
 
 test('execute() cannot be invoked after executor is closed', async () => {
@@ -279,7 +280,13 @@ Failed to execute transform: java.lang.InterruptedException`;
 });
 
 test('concurrent execute()', async () => {
-  const count = 100;
+  // FIXME: for some reason, on OSX the server prematurely closes connections
+  // if 100 are opened concurrently. Smaller numbers are OK. It's not
+  // deterministic, it seems to depend on system load. I'm not planning to spend
+  // time investigating this as I'd rather invest the time in replacing the
+  // Nailgun server with gRPC.
+  const count = os.platform() === 'darwin' ? 50 : 100;
+
   const executions = new Array(count).fill(null).map(async (val, i) => {
     const buffer = await execute({
       xml: `<foo n="${i}">hi</foo>`,
@@ -295,53 +302,6 @@ test('concurrent execute()', async () => {
 <result><foo n="${i}">hi</foo></result>`);
   }
   expect.assertions(count);
-});
-
-async function runTransform(keepAliveTimeout: number): Promise<number> {
-  const {pid, result} = await using(
-    XSLTExecutor.getInstance({jvmKeepAliveTimeout: keepAliveTimeout}),
-    async executor => {
-      return {
-        pid: getNailgunServerPID(executor),
-        result: executor.execute({xml: '<a/>', xsltPath: aXslPath}),
-      };
-    }
-  );
-
-  await expect((await result).toString()).toEqualXML(`\
-<?xml version="1.0" encoding="UTF-8"?>
-<result><a/></result>`);
-
-  return pid;
-}
-
-async function getNailgunServerPID(executor: XSLTExecutor): Promise<number> {
-  return (await executor['serverProcessRef'].resource)['process'].pid;
-}
-
-test('executor reuses nailgun server when within an un-elapsed jvmKeepAliveTimeout', async () => {
-  jest.useFakeTimers();
-  const keepAlive = 2000;
-
-  const pid1 = await runTransform(keepAlive);
-  // The keep-alive hasn't quite expired, so this will use the same server
-  jest.advanceTimersByTime(keepAlive - 1);
-  const pid2 = await runTransform(keepAlive);
-
-  // The keep-alive resets on each use, so now 2000ms needs to elapse - not 1 - before the server expires
-  jest.advanceTimersByTime(keepAlive - 1);
-  const pid3 = await runTransform(keepAlive);
-
-  // The keep-alive has now expired, this execution will need to start a new server
-  jest.advanceTimersByTime(keepAlive);
-  const pid4 = await runTransform(keepAlive);
-
-  expect(pid1).toBe(pid2);
-  expect(pid1).toBe(pid3);
-  expect(pid1).not.toBe(pid4);
-
-  // Clean up the second JVM by advancing timers to expire the keep-alive
-  jest.runAllTimers();
 });
 
 test("executor doesn't use keep-alive when timeout is 0", async () => {
